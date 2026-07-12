@@ -122,7 +122,7 @@ El proyecto deploya automáticamente en Netlify al hacer push a `main`.
 
 1. Conectar el repositorio a Netlify
 2. Configurar las variables de entorno en el dashboard de Netlify
-3. Build: `pnpm build`, Directorio: `dist`, Node: 20
+3. Build: `pnpm build`, Directorio: `dist`, Node: 22
 
 ### Producción
 
