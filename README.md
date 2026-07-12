@@ -1,6 +1,6 @@
 # Malatesta Pedales
 
-Inventario y catálogo online de pedales de guitarra para [Malatesta](https://malatesta.cl).
+Inventario y catálogo online de pedales de guitarra para [Malatesta](https://malatesta-pedales.netlify.app/).
 
 ## Resumen
 
