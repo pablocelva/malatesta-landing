@@ -1,0 +1,49 @@
+---
+import { RARITY_LABELS } from '../lib/types'
+
+export interface Props {
+  rarity: string
+  size?: 'sm' | 'md'
+}
+
+const { rarity, size = 'md' } = Astro.props
+
+const label = RARITY_LABELS[rarity] ?? 'Común'
+---
+
+<span class:list={['badge', `badge--${size}`, rarity && 'badge--active']}>
+  {rarity && <span class="badge-icon">{rarity}</span>}
+  <span class="badge-label">{label}</span>
+</span>
+
+<style>
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border-radius: 9999px;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    white-space: nowrap;
+  }
+
+  .badge--sm {
+    padding: 2px 8px;
+    font-size: var(--text-xs);
+  }
+
+  .badge--md {
+    padding: 4px 12px;
+    font-size: var(--text-sm);
+  }
+
+  .badge--active {
+    border-color: var(--color-border);
+  }
+
+  .badge-icon {
+    line-height: 1;
+  }
+</style>

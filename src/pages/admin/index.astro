@@ -1,0 +1,667 @@
+---
+export const prerender = false
+import AdminLayout from '../../layouts/AdminLayout.astro'
+---
+
+<AdminLayout title="Dashboard">
+  <div class="dashboard">
+    <div class="dashboard-stats" id="stats-container">
+      <p class="dashboard-loading">Cargando estadisticas...</p>
+    </div>
+
+    <div class="dashboard-section">
+      <div class="dashboard-section-header">
+        <h2 class="dashboard-section-title">Pedales</h2>
+        <div class="dashboard-section-actions">
+          <button id="export-btn" class="dashboard-btn dashboard-btn--secondary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Exportar CSV
+          </button>
+          <a href="/admin/pedales/nuevo" class="dashboard-btn dashboard-btn--primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Nuevo
+          </a>
+        </div>
+      </div>
+      <div id="pedales-table-container">
+        <p class="dashboard-loading">Cargando pedales...</p>
+      </div>
+    </div>
+  </div>
+</AdminLayout>
+
+<script>
+  import { supabase } from '../../lib/supabase'
+  import type { Pedal } from '../../lib/types'
+  import { CATEGORY_META } from '../../lib/types'
+  import { formatPrice } from '../../lib/utils'
+
+  async function checkAuth() {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      window.location.href = '/admin/login'
+      return false
+    }
+    return true
+  }
+
+  let allPedales: Pedal[] = []
+  let sortKey = 'name'
+  let sortDir: 'asc' | 'desc' = 'asc'
+  let currentPage = 1
+  const perPage = 15
+
+  const sortColumns: Record<string, (p: Pedal) => string | number> = {
+    name: (p) => p.name.toLowerCase(),
+    category: (p) => p.category,
+    price: (p) => p.price,
+    price_floor: (p) => p.price_floor,
+    price_optimistic: (p) => p.price_optimistic,
+    rarity: (p) => p.rarity,
+    available: (p) => (p.available ? 1 : 0),
+    in_use: (p) => (p.in_use ? 1 : 0),
+  }
+
+  function getSorted(): Pedal[] {
+    const getter = sortColumns[sortKey]
+    if (!getter) return allPedales
+    return [...allPedales].sort((a, b) => {
+      const va = getter(a)
+      const vb = getter(b)
+      if (va < vb) return sortDir === 'asc' ? -1 : 1
+      if (va > vb) return sortDir === 'asc' ? 1 : -1
+      return 0
+    })
+  }
+
+  function renderArrow(key: string) {
+    if (key !== sortKey) return '<span class="sort-arrow sort-arrow--inactive">&#8597;</span>'
+    return sortDir === 'asc'
+      ? '<span class="sort-arrow">&#9650;</span>'
+      : '<span class="sort-arrow">&#9660;</span>'
+  }
+
+  function renderTable() {
+    const sorted = getSorted()
+    const totalPages = Math.max(1, Math.ceil(sorted.length / perPage))
+    if (currentPage > totalPages) currentPage = totalPages
+    const start = (currentPage - 1) * perPage
+    const page = sorted.slice(start, start + perPage)
+
+    const rows = page
+      .map((p: Pedal) => {
+        const cat = CATEGORY_META[p.category]
+        const thumbHtml = p.image_url
+          ? `<img src="${p.image_url}" alt="" class="table-thumb" loading="lazy" />`
+          : `<span class="table-thumb-placeholder">${cat?.emoji ?? ''}</span>`
+        const badges = [
+          p.rarity ? `<span class="card-badge">${p.rarity}</span>` : '',
+          p.available ? '<span class="card-badge card-badge--ok">Disponible</span>' : '<span class="card-badge card-badge--danger">No disp.</span>',
+          p.in_use ? '<span class="card-badge card-badge--accent">En uso</span>' : '',
+        ].filter(Boolean).join('')
+
+        return `
+        <tr class="table-row">
+          <td class="table-cell table-cell--thumb">${thumbHtml}</td>
+          <td class="table-cell table-cell--name">
+            <a href="/admin/pedales/${p.slug}" class="table-link">${p.name}</a>
+            <span class="table-cell-sub">${cat?.emoji ?? ''} ${cat?.name ?? p.category}</span>
+          </td>
+          <td class="table-cell table-cell--mono">${formatPrice(p.price)}</td>
+          <td class="table-cell table-cell--mono table-cell--hide-tablet">${formatPrice(p.price_floor)}</td>
+          <td class="table-cell table-cell--mono table-cell--hide-tablet">${formatPrice(p.price_optimistic)}</td>
+          <td class="table-cell table-cell--hide-mobile">${p.rarity || '—'}</td>
+          <td class="table-cell">${p.available ? '<span class="badge-available">Disponible</span>' : '<span class="badge-unavailable">No disponible</span>'}</td>
+          <td class="table-cell table-cell--hide-mobile">${p.in_use ? '<span class="badge-use">En uso</span>' : '—'}</td>
+          <td class="table-cell table-cell--card">${badges}</td>
+        </tr>
+      `
+      })
+      .join('')
+
+    const pages = Array.from({ length: totalPages }, (_, i) => i + 1)
+    const pagination = totalPages > 1
+      ? `<div class="table-pagination">
+          <span class="table-pagination-info">${start + 1}–${Math.min(start + perPage, sorted.length)} de ${sorted.length}</span>
+          <div class="table-pagination-btns">
+            <button class="page-btn" data-page="prev" ${currentPage <= 1 ? 'disabled' : ''}>&#8249;</button>
+            ${pages.map((pg) => `<button class="page-btn ${pg === currentPage ? 'page-btn--active' : ''}" data-page="${pg}">${pg}</button>`).join('')}
+            <button class="page-btn" data-page="next" ${currentPage >= totalPages ? 'disabled' : ''}>&#8250;</button>
+          </div>
+        </div>`
+      : ''
+
+    const container = document.getElementById('pedales-table-container')!
+    container.innerHTML = `
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th class="th--thumb"></th>
+              <th class="sortable" data-sort="name">Nombre ${renderArrow('name')}</th>
+              <th class="sortable" data-sort="price">Precio ${renderArrow('price')}</th>
+              <th class="sortable th--hide-tablet" data-sort="price_floor">Piso ${renderArrow('price_floor')}</th>
+              <th class="sortable th--hide-tablet" data-sort="price_optimistic">Optimista ${renderArrow('price_optimistic')}</th>
+              <th class="sortable th--hide-mobile" data-sort="rarity">Rareza ${renderArrow('rarity')}</th>
+              <th class="sortable" data-sort="available">Disponible ${renderArrow('available')}</th>
+              <th class="sortable th--hide-mobile" data-sort="in_use">Uso ${renderArrow('in_use')}</th>
+              <th class="th--card"></th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      ${pagination}
+    `
+
+    container.querySelectorAll('.sortable').forEach((th) => {
+      th.addEventListener('click', () => {
+        const key = (th as HTMLElement).dataset.sort!
+        if (sortKey === key) {
+          sortDir = sortDir === 'asc' ? 'desc' : 'asc'
+        } else {
+          sortKey = key
+          sortDir = 'asc'
+        }
+        currentPage = 1
+        renderTable()
+      })
+    })
+
+    container.querySelectorAll('.page-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const val = (btn as HTMLElement).dataset.page!
+        if (val === 'prev') currentPage--
+        else if (val === 'next') currentPage++
+        else currentPage = Number(val)
+        renderTable()
+      })
+    })
+  }
+
+  async function loadDashboard() {
+    if (!(await checkAuth())) return
+
+    const { data: pedales, error } = await supabase
+      .from('pedales')
+      .select('*')
+      .order('category')
+      .order('name')
+
+    if (error || !pedales) return
+
+    allPedales = pedales as Pedal[]
+
+    const statsContainer = document.getElementById('stats-container')
+    if (statsContainer) {
+      const totalValue = allPedales.reduce((sum: number, p: Pedal) => sum + p.price, 0)
+      const inUse = allPedales.filter((p: Pedal) => p.in_use).length
+      const rareCount = allPedales.filter((p: Pedal) => p.rarity === '💎' || p.rarity === '🔷').length
+
+      statsContainer.innerHTML = `
+        <div class="stat-card">
+          <span class="stat-value">${allPedales.length}</span>
+          <span class="stat-label">Total pedales</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value">${formatPrice(totalValue)}</span>
+          <span class="stat-label">Valor catalogo</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value">${inUse}</span>
+          <span class="stat-label">En uso</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value">${rareCount}</span>
+          <span class="stat-label">Raros / Ultra raros</span>
+        </div>
+      `
+    }
+
+    renderTable()
+  }
+
+  loadDashboard()
+
+  document.getElementById('export-btn')?.addEventListener('click', () => {
+    if (!allPedales.length) return
+
+    const headers = ['name','slug','category','type','typology','tags','rarity','condition','condition_detail','price','price_floor','price_optimistic','in_use','available','image_url','notes']
+    const rows = allPedales.map((p: Pedal) => {
+      const tagsStr = typeof p.tags === 'string' ? (p.tags as string).replace(/\|/g, ',') : ''
+      return headers.map((h) => {
+        let val = String((p as Record<string, unknown>)[h] ?? '')
+        if (h === 'tags') val = tagsStr
+        if (h === 'in_use' || h === 'available') val = String((p as Record<string, unknown>)[h])
+        if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+          val = '"' + val.replace(/"/g, '""') + '"'
+        }
+        return val
+      }).join(',')
+    })
+
+    const csv = [headers.join(','), ...rows].join('\n')
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `pedales-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  })
+</script>
+
+<style>
+  .dashboard {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2xl);
+  }
+
+  .dashboard-loading {
+    color: var(--color-text-muted);
+    padding: var(--space-xl);
+    text-align: center;
+  }
+
+  .dashboard-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-md);
+  }
+
+  .stat-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    padding: var(--space-lg);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+  }
+
+  .stat-value {
+    font-family: var(--font-mono);
+    font-size: var(--text-2xl);
+    font-weight: 700;
+  }
+
+  .stat-label {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+
+  .dashboard-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-lg);
+  }
+
+  .dashboard-section-title {
+    font-size: var(--text-xl);
+    font-weight: 600;
+  }
+
+  .dashboard-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: 8px 16px;
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    text-decoration: none;
+    transition: all var(--transition-fast);
+  }
+
+  .dashboard-btn--primary {
+    background: var(--color-text);
+    color: var(--color-bg);
+  }
+
+  .dashboard-btn--primary:hover {
+    background: var(--color-text-secondary);
+    color: var(--color-bg);
+  }
+
+  .dashboard-btn--secondary {
+    background: transparent;
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border);
+  }
+
+  .dashboard-btn--secondary:hover {
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  .dashboard-section-actions {
+    display: flex;
+    gap: var(--space-sm);
+  }
+
+  @media (max-width: 768px) {
+    .dashboard-stats {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .stat-card {
+      padding: var(--space-md);
+    }
+
+    .stat-value {
+      font-size: var(--text-xl);
+    }
+
+    .dashboard-btn svg {
+      display: none;
+    }
+  }
+</style>
+
+<style is:global>
+  .table-wrapper {
+    overflow-x: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+  }
+
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+  }
+
+  .data-table th {
+    padding: var(--space-md) var(--space-lg);
+    text-align: left;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    border-bottom: 1px solid var(--color-border);
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: var(--text-xs);
+  }
+
+  .sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: color var(--transition-fast);
+  }
+
+  .sortable:hover {
+    color: var(--color-text);
+  }
+
+  .sort-arrow {
+    font-size: 10px;
+    margin-left: 4px;
+  }
+
+  .sort-arrow--inactive {
+    opacity: 0.3;
+  }
+
+  .th--thumb {
+    width: 48px;
+  }
+
+  .th--card,
+  .table-cell--card {
+    display: none;
+  }
+
+  .table-row:hover {
+    background: var(--color-bg-hover);
+  }
+
+  .table-cell {
+    padding: var(--space-md) var(--space-lg);
+    border-bottom: 1px solid var(--color-border-subtle);
+    vertical-align: middle;
+  }
+
+  .table-cell--thumb {
+    width: 48px;
+    padding-right: 0;
+  }
+
+  .table-cell--name {
+    min-width: 160px;
+  }
+
+  .table-cell-sub {
+    display: block;
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+    margin-top: 2px;
+  }
+
+  .table-cell--mono {
+    font-family: var(--font-mono);
+  }
+
+  .table-link {
+    font-weight: 500;
+    color: var(--color-text);
+    text-decoration: none;
+  }
+
+  .table-link:hover {
+    color: var(--color-accent);
+  }
+
+  .badge-use {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--color-accent);
+    background: rgba(245, 158, 11, 0.1);
+    padding: 2px 8px;
+    border-radius: 9999px;
+  }
+
+  .badge-available {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--condition-mint-text);
+    background: var(--condition-mint-bg);
+    padding: 2px 8px;
+    border-radius: 9999px;
+  }
+
+  .badge-unavailable {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--condition-repair-text);
+    background: var(--condition-repair-bg);
+    padding: 2px 8px;
+    border-radius: 9999px;
+  }
+
+  .card-badge {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    color: var(--color-text-secondary);
+    background: var(--color-bg-hover);
+  }
+
+  .card-badge--ok {
+    color: var(--condition-mint-text);
+    background: var(--condition-mint-bg);
+  }
+
+  .card-badge--danger {
+    color: var(--condition-repair-text);
+    background: var(--condition-repair-bg);
+  }
+
+  .card-badge--accent {
+    color: var(--color-accent);
+    background: rgba(245, 158, 11, 0.1);
+  }
+
+  .table-thumb {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
+    object-fit: cover;
+    background: var(--color-bg);
+  }
+
+  .table-thumb-placeholder {
+    display: flex;
+    width: 40px;
+    height: 40px;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    background: var(--color-bg);
+    font-size: var(--text-lg);
+  }
+
+  .table-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-md) var(--space-lg);
+    border-top: 1px solid var(--color-border);
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+
+  .table-pagination-btns {
+    display: flex;
+    gap: var(--space-xs);
+  }
+
+  .page-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 var(--space-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+  }
+
+  .page-btn:hover:not(:disabled) {
+    background: var(--color-bg-hover);
+    color: var(--color-text);
+    border-color: var(--color-text-muted);
+  }
+
+  .page-btn--active {
+    background: var(--color-text);
+    color: var(--color-bg);
+    border-color: var(--color-text);
+  }
+
+  .page-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  @media (max-width: 768px) {
+    .table-pagination {
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+  }
+
+  @media (max-width: 768px) {
+    .th--hide-tablet,
+    .table-cell--hide-tablet {
+      display: none;
+    }
+
+    .th--card {
+      display: none;
+    }
+
+    .table-cell--card {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-xs);
+      padding: 0;
+      border: none;
+    }
+
+    .th--hide-mobile,
+    .table-cell--hide-mobile {
+      display: none;
+    }
+
+    .table-wrapper {
+      border: none;
+    }
+
+    .data-table thead {
+      display: none;
+    }
+
+    .table-row {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-md);
+      margin-bottom: var(--space-sm);
+    }
+
+    .table-cell {
+      padding: 0;
+      border: none;
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    .table-cell--thumb {
+      margin-bottom: var(--space-xs);
+    }
+
+    .table-thumb {
+      width: 48px;
+      height: 48px;
+    }
+
+    .table-thumb-placeholder {
+      width: 48px;
+      height: 48px;
+      font-size: var(--text-xl);
+    }
+
+    .table-cell--name {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+    }
+
+    .table-cell--name .table-link {
+      font-size: var(--text-base);
+    }
+
+    .table-cell--mono {
+      font-family: var(--font-mono);
+      font-size: var(--text-lg);
+      font-weight: 600;
+    }
+
+    .table-pagination {
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+  }
+</style>

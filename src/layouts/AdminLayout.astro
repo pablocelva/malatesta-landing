@@ -1,0 +1,272 @@
+---
+export interface Props {
+  title: string
+}
+
+const { title } = Astro.props
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title} | Malatesta Admin</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  </head>
+  <body class="admin-body">
+    <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Abrir menu">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="3" y1="6" x2="21" y2="6" />
+        <line x1="3" y1="12" x2="21" y2="12" />
+        <line x1="3" y1="18" x2="21" y2="18" />
+      </svg>
+    </button>
+
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+    <div class="admin-layout">
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+          <span class="sidebar-logo">M</span>
+          <span class="sidebar-title">Admin</span>
+        </div>
+        <nav class="sidebar-nav">
+          <a href="/admin" class="sidebar-link">Dashboard</a>
+          <a href="/admin/pedales/nuevo" class="sidebar-link">Nuevo Pedal</a>
+          <a href="/admin/import" class="sidebar-link">Importar CSV</a>
+          <a href="/catalogo" class="sidebar-link" target="_blank">Ver Catalogo</a>
+        </nav>
+        <div class="sidebar-footer">
+          <button id="logout-btn" class="sidebar-link sidebar-link--danger">Cerrar sesion</button>
+        </div>
+      </aside>
+      <main class="admin-main">
+        <header class="admin-header">
+          <h1 class="admin-page-title">{title}</h1>
+        </header>
+        <div class="admin-content">
+          <slot />
+        </div>
+      </main>
+    </div>
+
+    <script>
+      import { supabase } from '../lib/supabase'
+
+      const sidebar = document.getElementById('sidebar')!
+      const overlay = document.getElementById('sidebar-overlay')!
+      const toggle = document.getElementById('sidebar-toggle')!
+
+      function openSidebar() {
+        sidebar.classList.add('sidebar--open')
+        overlay.classList.add('sidebar-overlay--visible')
+        document.body.style.overflow = 'hidden'
+      }
+
+      function closeSidebar() {
+        sidebar.classList.remove('sidebar--open')
+        overlay.classList.remove('sidebar-overlay--visible')
+        document.body.style.overflow = ''
+      }
+
+      toggle.addEventListener('click', openSidebar)
+      overlay.addEventListener('click', closeSidebar)
+
+      sidebar.querySelectorAll('.sidebar-link').forEach((link) => {
+        link.addEventListener('click', closeSidebar)
+      })
+
+      document.getElementById('logout-btn')?.addEventListener('click', async () => {
+        await supabase.auth.signOut()
+        window.location.href = '/admin/login'
+      })
+    </script>
+  </body>
+</html>
+
+<style is:global>
+  @import '../styles/tokens.css';
+
+  .admin-body {
+    background: var(--color-bg);
+    color: var(--color-text);
+  }
+
+  /* Mobile toggle */
+  .sidebar-toggle {
+    display: none;
+    position: fixed;
+    top: var(--space-md);
+    left: var(--space-md);
+    z-index: 1000;
+    width: 44px;
+    height: 44px;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text);
+    cursor: pointer;
+  }
+
+  /* Overlay */
+  .sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(2px);
+  }
+
+  .sidebar-overlay--visible {
+    display: block;
+  }
+
+  /* Layout */
+  .admin-layout {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    min-height: 100vh;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    background: var(--color-bg-elevated);
+    border-right: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-lg);
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    z-index: 100;
+  }
+
+  .sidebar-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-2xl);
+  }
+
+  .sidebar-logo {
+    width: 36px;
+    height: 36px;
+    background: var(--color-accent);
+    color: var(--color-bg);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: var(--text-lg);
+  }
+
+  .sidebar-title {
+    font-weight: 600;
+    font-size: var(--text-lg);
+  }
+
+  .sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    flex: 1;
+  }
+
+  .sidebar-link {
+    display: block;
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-md);
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    transition: all var(--transition-fast);
+    border: none;
+    background: none;
+    text-align: left;
+    width: 100%;
+  }
+
+  .sidebar-link:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text);
+  }
+
+  .sidebar-link--danger {
+    color: var(--color-danger);
+  }
+
+  .sidebar-link--danger:hover {
+    background: rgba(239, 68, 68, 0.1);
+  }
+
+  /* Main */
+  .admin-main {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  .admin-header {
+    padding: var(--space-lg) var(--space-2xl);
+    padding-left: calc(var(--space-2xl) + 60px);
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg-elevated);
+  }
+
+  .admin-page-title {
+    font-size: var(--text-xl);
+    font-weight: 600;
+  }
+
+  .admin-content {
+    padding: var(--space-2xl);
+    flex: 1;
+  }
+
+  /* Tablet */
+  @media (max-width: 1024px) {
+    .admin-layout {
+      grid-template-columns: 220px 1fr;
+    }
+  }
+
+  /* Mobile */
+  @media (max-width: 768px) {
+    .sidebar-toggle {
+      display: flex;
+    }
+
+    .admin-layout {
+      grid-template-columns: 1fr;
+    }
+
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: -280px;
+      width: 280px;
+      height: 100vh;
+      transition: left var(--transition-slow);
+      z-index: 100;
+    }
+
+    .sidebar--open {
+      left: 0;
+    }
+
+    .admin-header {
+      padding-left: calc(var(--space-md) + 60px);
+      padding-right: var(--space-md);
+    }
+
+    .admin-content {
+      padding: var(--space-md);
+    }
+  }
+</style>

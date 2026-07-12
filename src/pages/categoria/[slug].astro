@@ -1,0 +1,406 @@
+---
+export const prerender = false
+import Layout from '../../layouts/Layout.astro'
+import { CATEGORY_META, CATEGORY_SLUGS } from '../../lib/types'
+
+export const revalidate = 60
+
+const { slug } = Astro.params
+
+if (!slug || !CATEGORY_SLUGS.includes(slug as any)) {
+  return Astro.redirect('/catalogo')
+}
+
+const category = CATEGORY_META[slug as keyof typeof CATEGORY_META]
+
+const allCategories = CATEGORY_SLUGS.map((s) => ({
+  slug: s,
+  ...CATEGORY_META[s],
+}))
+---
+
+<Layout
+  title={`${category.emoji} ${category.name} — Catalogo`}
+  description={`Pedales de categoria ${category.name}.`}
+>
+  <main class="categoria">
+    <div class="container">
+      <nav class="categoria-nav">
+        <a href="/catalogo" class="categoria-back">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M10 12L6 8L10 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Todos los pedales
+        </a>
+      </nav>
+
+      <header class="categoria-header">
+        <span class="categoria-emoji">{category.emoji}</span>
+        <h1 class="categoria-title">{category.name}</h1>
+        <p class="categoria-count" id="categoria-count"></p>
+      </header>
+
+      <nav class="categoria-filters" aria-label="Categorias">
+        {allCategories.map((cat) => (
+          <a
+            href={`/categoria/${cat.slug}`}
+            class:list={['filter-btn', cat.slug === slug && 'filter-btn--active']}
+          >
+            {cat.emoji} {cat.name}
+          </a>
+        ))}
+      </nav>
+
+      <div id="categoria-data" data-slug={slug}>
+        <p class="categoria-loading">Cargando pedales...</p>
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<script>
+  import { supabase } from '../../lib/supabase'
+  import { CATEGORY_META } from '../../lib/types'
+  import { formatPrice, getConditionLabel, getConditionColor } from '../../lib/utils'
+
+  const container = document.getElementById('categoria-data')
+  const slug = container?.dataset.slug ?? ''
+
+  const PER_PAGE = 12
+  let currentPage = 1
+  let allPedales = []
+
+  function renderCard(pedal) {
+    const category = CATEGORY_META[pedal.category]
+    const condition = getConditionLabel(pedal.condition, pedal.condition_detail)
+    const condColor = getConditionColor(pedal.condition)
+    const tags = typeof pedal.tags === 'string' ? pedal.tags.split('|').filter(Boolean) : (pedal.tags ?? [])
+
+    return `
+      <a href="/catalogo/${pedal.slug}" class="cat-card">
+        ${pedal.image_url ? `<div class="cat-card-img"><img src="${pedal.image_url}" alt="${pedal.name}" loading="lazy" /></div>` : ''}
+        <div class="cat-card-header">
+          <span class="cat-card-cat">${category?.emoji ?? ''} ${category?.name ?? pedal.category}</span>
+          ${pedal.rarity ? `<span class="cat-card-rarity">${pedal.rarity}</span>` : ''}
+        </div>
+        <div class="cat-card-body">
+          <h3 class="cat-card-name">${pedal.name}</h3>
+          <p class="cat-card-typology">${pedal.typology}</p>
+          ${condition ? `<span class="cat-card-condition cat-condition--${condColor}">${condition}</span>` : ''}
+        </div>
+        <div class="cat-card-footer">
+          <span class="cat-card-price">${formatPrice(pedal.price)}</span>
+          ${!pedal.available ? '<span class="cat-card-unavailable">No disponible</span>' : ''}
+        </div>
+      </a>
+    `
+  }
+
+  function renderPage(page) {
+    const container = document.getElementById('categoria-data')
+    const countEl = document.getElementById('categoria-count')
+    if (!container) return
+
+    currentPage = page
+    const start = (page - 1) * PER_PAGE
+    const pagePedales = allPedales.slice(start, start + PER_PAGE)
+    const totalPages = Math.ceil(allPedales.length / PER_PAGE)
+
+    if (countEl) countEl.textContent = `${allPedales.length} pedales`
+
+    const html = pagePedales.map(renderCard).join('')
+
+    let pagination = ''
+    if (totalPages > 1) {
+      const pages = Array.from({ length: totalPages }, (_, i) => i + 1)
+      pagination = `
+        <nav class="cat-pagination" aria-label="Paginacion">
+          ${page > 1 ? `<button class="pagination-btn" data-page="${page - 1}">← Anterior</button>` : '<span></span>'}
+          <span class="pagination-info">${page} / ${totalPages}</span>
+          ${page < totalPages ? `<button class="pagination-btn" data-page="${page + 1}">Siguiente →</button>` : '<span></span>'}
+        </nav>
+      `
+    }
+
+    container.innerHTML = `<div class="cat-grid">${html}</div>${pagination}`
+
+    container.querySelectorAll('.pagination-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const p = Number(btn.dataset.page)
+        renderPage(p)
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      })
+    })
+  }
+
+  async function loadPedales() {
+    const container = document.getElementById('categoria-data')
+    if (!container) return
+
+    const { data, error } = await supabase
+      .from('pedales')
+      .select('*')
+      .eq('category', slug)
+      .order('name')
+
+    if (error || !data?.length) {
+      console.error('Supabase error:', error)
+      container.innerHTML = `
+        <div class="categoria-empty">
+          <p>No hay pedales en esta categoria.</p>
+        </div>
+      `
+      return
+    }
+
+    allPedales = data.map((p) => ({
+      ...p,
+      tags: typeof p.tags === 'string' ? p.tags.split('|').filter(Boolean) : (p.tags ?? []),
+    }))
+    renderPage(1)
+  }
+
+  loadPedales()
+</script>
+
+<style>
+  .categoria {
+    padding: var(--space-3xl) 0;
+    min-height: 100vh;
+  }
+
+  .categoria-nav {
+    margin-bottom: var(--space-2xl);
+  }
+
+  .categoria-back {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    transition: color var(--transition-fast);
+  }
+
+  .categoria-back:hover {
+    color: var(--color-text);
+  }
+
+  .categoria-header {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-md);
+    margin-bottom: var(--space-2xl);
+  }
+
+  .categoria-emoji {
+    font-size: var(--text-4xl);
+    line-height: 1;
+  }
+
+  .categoria-title {
+    font-size: var(--text-4xl);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
+  .categoria-count {
+    font-size: var(--text-lg);
+    color: var(--color-text-secondary);
+  }
+
+  .categoria-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-2xl);
+    padding-bottom: var(--space-lg);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .filter-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 9999px;
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    background: transparent;
+    border: 1px solid var(--color-border);
+    transition: all var(--transition-fast);
+    text-decoration: none;
+  }
+
+  .filter-btn:hover {
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  .filter-btn--active {
+    background: var(--color-text);
+    color: var(--color-bg);
+    border-color: var(--color-text);
+  }
+
+  .categoria-loading {
+    text-align: center;
+    padding: var(--space-3xl);
+    color: var(--color-text-muted);
+  }
+
+  .categoria-empty {
+    text-align: center;
+    padding: var(--space-3xl);
+    color: var(--color-text-secondary);
+  }
+</style>
+
+<style is:global>
+  .cat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: var(--space-md);
+  }
+
+  .cat-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    padding: var(--space-lg);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    transition: all 200ms ease;
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .cat-card:hover {
+    border-color: var(--color-border);
+    background: var(--color-bg-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+  }
+
+  .cat-card-img {
+    width: 100%;
+    aspect-ratio: 4/3;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: var(--color-bg);
+  }
+
+  .cat-card-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .cat-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .cat-card-cat {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-text-muted);
+  }
+
+  .cat-card-rarity {
+    font-size: 14px;
+    line-height: 1;
+  }
+
+  .cat-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+  }
+
+  .cat-card-name {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--color-text);
+  }
+
+  .cat-card-typology {
+    font-size: 14px;
+    color: var(--color-text-secondary);
+  }
+
+  .cat-card-condition {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 2px 10px;
+    border-radius: 9999px;
+    font-size: 12px;
+    font-weight: 500;
+    width: fit-content;
+  }
+
+  .cat-condition--mint {
+    background: var(--condition-mint-bg);
+    color: var(--condition-mint-text);
+  }
+
+  .cat-condition--box {
+    background: var(--condition-box-bg);
+    color: var(--condition-box-text);
+  }
+
+  .cat-condition--warn {
+    background: var(--condition-warn-bg);
+    color: var(--condition-warn-text);
+  }
+
+  .cat-condition--repair {
+    background: var(--condition-repair-bg);
+    color: var(--condition-repair-text);
+  }
+
+  .cat-condition--neutral {
+    background: var(--condition-neutral-bg);
+    color: var(--condition-neutral-text);
+  }
+
+  .cat-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: var(--space-md);
+    border-top: 1px solid var(--color-border-subtle);
+  }
+
+  .cat-card-price {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-size: 18px;
+    color: var(--color-text);
+  }
+
+  .cat-card-unavailable {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--condition-repair-text);
+    background: var(--condition-repair-bg);
+    padding: 2px 10px;
+    border-radius: 9999px;
+  }
+
+  .cat-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-lg);
+    margin-top: var(--space-2xl);
+    padding-top: var(--space-xl);
+    border-top: 1px solid var(--color-border);
+  }
+</style>

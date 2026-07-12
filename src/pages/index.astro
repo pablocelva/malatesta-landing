@@ -1,0 +1,194 @@
+---
+import Layout from '../layouts/Layout.astro'
+import Hero from '../components/Hero.astro'
+import { CATEGORY_META } from '../lib/types'
+
+const categories = Object.entries(CATEGORY_META).map(([slug, meta]) => ({
+  slug,
+  ...meta,
+}))
+
+const stats = [
+  { value: '50', label: 'Pedales', icon: '🎛️' },
+  { value: '10', label: 'Categorias', icon: '📂' },
+  { value: '5', label: 'En uso', icon: '🎸' },
+  { value: '💎', label: 'Ultra raros', icon: '' },
+]
+---
+
+<Layout
+  title="Malatesta Pedales"
+  description="Catalogo unificado de pedales de guitarra boutique, vintage y de coleccion. 50 pedales con precios internos y publicos."
+>
+  <Hero />
+
+  <section class="categories" id="categorias">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title">Categorias</h2>
+        <p class="section-subtitle">Explora el catalogo por tipo de efecto</p>
+      </div>
+      <div class="categories-grid">
+        {categories.map((cat) => (
+          <a href={`/categoria/${cat.slug}`} class="category-card">
+            <span class="category-emoji">{cat.emoji}</span>
+            <span class="category-name">{cat.name}</span>
+            <svg class="category-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="cta">
+    <div class="container container--narrow">
+      <div class="cta-card">
+        <h2 class="cta-title">catalogo completo</h2>
+        <p class="cta-text">
+          Accede al inventario completo con precios, estados, rareza y observaciones detalladas de cada pedal.
+        </p>
+        <a href="/catalogo" class="cta-btn">
+          Ver todos los pedales
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container">
+      <p class="footer-text">
+        Malatesta Pedales &copy; {new Date().getFullYear()}
+      </p>
+    </div>
+  </footer>
+</Layout>
+
+<style>
+  .categories {
+    padding: var(--space-3xl) 0;
+  }
+
+  .section-header {
+    margin-bottom: var(--space-2xl);
+  }
+
+  .section-title {
+    font-size: var(--text-3xl);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: var(--space-sm);
+  }
+
+  .section-subtitle {
+    font-size: var(--text-lg);
+    color: var(--color-text-secondary);
+  }
+
+  .categories-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--space-md);
+  }
+
+  .category-card {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-lg);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    transition: all var(--transition-base);
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .category-card:hover {
+    border-color: var(--color-border);
+    background: var(--color-bg-hover);
+    transform: translateY(-1px);
+  }
+
+  .category-emoji {
+    font-size: var(--text-2xl);
+    line-height: 1;
+  }
+
+  .category-name {
+    flex: 1;
+    font-weight: 500;
+    font-size: var(--text-base);
+  }
+
+  .category-arrow {
+    color: var(--color-text-muted);
+    transition: transform var(--transition-fast);
+  }
+
+  .category-card:hover .category-arrow {
+    transform: translateX(4px);
+    color: var(--color-text-secondary);
+  }
+
+  .cta {
+    padding: var(--space-3xl) 0;
+  }
+
+  .cta-card {
+    text-align: center;
+    padding: var(--space-3xl);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+  }
+
+  .cta-title {
+    font-size: var(--text-3xl);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: var(--space-md);
+  }
+
+  .cta-text {
+    font-size: var(--text-lg);
+    color: var(--color-text-secondary);
+    margin-bottom: var(--space-xl);
+    max-width: 480px;
+    margin-inline: auto;
+  }
+
+  .cta-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: 12px 24px;
+    background: var(--color-text);
+    color: var(--color-bg);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    transition: all var(--transition-fast);
+    text-decoration: none;
+  }
+
+  .cta-btn:hover {
+    background: var(--color-text-secondary);
+    color: var(--color-bg);
+  }
+
+  .footer {
+    padding: var(--space-2xl) 0;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .footer-text {
+    text-align: center;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+</style>

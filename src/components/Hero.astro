@@ -1,0 +1,218 @@
+---
+---
+
+<section class="hero">
+  <div class="hero-bg">
+    <div class="hero-gradient"></div>
+    <div class="hero-grid"></div>
+  </div>
+  <div class="hero-content container">
+    <div class="hero-badge">
+      <span class="hero-badge-dot"></span>
+      Inventario de pedales de guitarra
+    </div>
+    <h1 class="hero-title">
+      <span class="hero-title-line">Malatesta</span>
+      <span class="hero-title-line hero-title-accent">Pedales</span>
+    </h1>
+    <p class="hero-subtitle">
+      50 pedales boutique, vintage y de coleccion. Overdrives, fuzzes, delays y mas.
+      Catalogo unificado con precios y valores internos.
+    </p>
+    <div class="hero-actions">
+      <a href="/catalogo" class="hero-btn hero-btn--primary">
+        Ver catalogo
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </a>
+      <a href="#stats" class="hero-btn hero-btn--secondary">Ver estadisticas</a>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <span class="hero-stat-value">50</span>
+        <span class="hero-stat-label">Pedales</span>
+      </div>
+      <div class="hero-stat-divider"></div>
+      <div class="hero-stat">
+        <span class="hero-stat-value">10</span>
+        <span class="hero-stat-label">Categorias</span>
+      </div>
+      <div class="hero-stat-divider"></div>
+      <div class="hero-stat">
+        <span class="hero-stat-value">5</span>
+        <span class="hero-stat-label">En uso</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .hero {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+  }
+
+  .hero-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+  }
+
+  .hero-gradient {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+      ellipse 80% 60% at 50% 0%,
+      rgba(245, 158, 11, 0.08) 0%,
+      rgba(245, 158, 11, 0.02) 40%,
+      transparent 70%
+    );
+  }
+
+  .hero-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    background-size: 60px 60px;
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, black, transparent);
+  }
+
+  .hero-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-xl);
+    padding-top: 120px;
+    padding-bottom: 80px;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: 6px 16px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 9999px;
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+  }
+
+  .hero-badge-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--color-success);
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .hero-title {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    line-height: 0.95;
+  }
+
+  .hero-title-line {
+    font-size: clamp(3rem, 8vw, 6rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: var(--color-text);
+  }
+
+  .hero-title-accent {
+    color: var(--color-accent);
+  }
+
+  .hero-subtitle {
+    max-width: 520px;
+    font-size: var(--text-lg);
+    color: var(--color-text-secondary);
+    line-height: var(--leading-relaxed);
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: var(--space-md);
+    align-items: center;
+  }
+
+  .hero-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: 12px 24px;
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    transition: all var(--transition-fast);
+    text-decoration: none;
+  }
+
+  .hero-btn--primary {
+    background: var(--color-text);
+    color: var(--color-bg);
+  }
+
+  .hero-btn--primary:hover {
+    background: var(--color-text-secondary);
+    color: var(--color-bg);
+  }
+
+  .hero-btn--secondary {
+    background: transparent;
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border);
+  }
+
+  .hero-btn--secondary:hover {
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  .hero-stats {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xl);
+    margin-top: var(--space-xl);
+    padding-top: var(--space-xl);
+    border-top: 1px solid var(--color-border);
+  }
+
+  .hero-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .hero-stat-value {
+    font-family: var(--font-mono);
+    font-size: var(--text-2xl);
+    font-weight: 700;
+    color: var(--color-text);
+  }
+
+  .hero-stat-label {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+
+  .hero-stat-divider {
+    width: 1px;
+    height: 40px;
+    background: var(--color-border);
+  }
+</style>

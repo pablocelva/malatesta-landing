@@ -1,0 +1,382 @@
+---
+import Layout from '../layouts/Layout.astro'
+import { CATEGORY_META, CATEGORY_SLUGS } from '../lib/types'
+
+export const revalidate = 60
+
+const categories = CATEGORY_SLUGS.map((slug) => ({
+  slug,
+  ...CATEGORY_META[slug],
+}))
+---
+
+<Layout
+  title="Catalogo de Pedales"
+  description="Explora el catalogo completo de pedales de guitarra. 50 pedales boutique, vintage y de coleccion con precios y detalles."
+>
+  <main class="catalogo">
+    <div class="container">
+      <header class="catalogo-header">
+        <h1 class="catalogo-title">Catalogo</h1>
+        <p class="catalogo-subtitle">50 pedales organizados por categoria</p>
+      </header>
+
+      <nav class="filters" aria-label="Categorias">
+        {categories.map((cat) => (
+          <a href={`/categoria/${cat.slug}`} class="filter-btn">
+            {cat.emoji} {cat.name}
+          </a>
+        ))}
+      </nav>
+
+      <div id="catalogo-data">
+        <p class="catalogo-loading">Cargando pedales...</p>
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<script>
+  import { supabase } from '../lib/supabase'
+  import type { Pedal } from '../lib/types'
+  import { CATEGORY_META } from '../lib/types'
+  import { formatPrice, getConditionLabel, getConditionColor } from '../lib/utils'
+
+  const PER_PAGE = 12
+  let currentPage = 1
+  let allPedales: Pedal[] = []
+
+  function renderCard(pedal: Pedal) {
+    const category = CATEGORY_META[pedal.category]
+    const condition = getConditionLabel(pedal.condition, pedal.condition_detail)
+    const condColor = getConditionColor(pedal.condition)
+    return `
+      <a href="/catalogo/${pedal.slug}" class="catalogo-card">
+        ${pedal.image_url ? `<div class="catalogo-card-img"><img src="${pedal.image_url}" alt="${pedal.name}" loading="lazy" /></div>` : ''}
+        <div class="catalogo-card-header">
+          <span class="catalogo-card-cat">${category?.emoji ?? ''} ${category?.name ?? pedal.category}</span>
+          ${pedal.rarity ? `<span class="catalogo-card-rarity">${pedal.rarity}</span>` : ''}
+        </div>
+        <div class="catalogo-card-body">
+          <h3 class="catalogo-card-name">${pedal.name}</h3>
+          <p class="catalogo-card-typology">${pedal.typology}</p>
+          ${condition ? `<span class="catalogo-card-condition condition--${condColor}">${condition}</span>` : ''}
+        </div>
+        <div class="catalogo-card-footer">
+          <span class="catalogo-card-price">${formatPrice(pedal.price)}</span>
+          ${!pedal.available ? '<span class="catalogo-card-unavailable">No disponible</span>' : ''}
+        </div>
+      </a>
+    `
+  }
+
+  function renderPage(page: number) {
+    const container = document.getElementById('catalogo-data')
+    if (!container) return
+
+    currentPage = page
+    const start = (page - 1) * PER_PAGE
+    const pagePedales = allPedales.slice(start, start + PER_PAGE)
+    const totalPages = Math.ceil(allPedales.length / PER_PAGE)
+
+    const html = pagePedales.map(renderCard).join('')
+
+    let pagination = ''
+    if (totalPages > 1) {
+      pagination = `
+        <nav class="catalogo-pagination" aria-label="Paginacion">
+          ${page > 1 ? `<button class="pagination-btn" data-page="${page - 1}">← Anterior</button>` : '<span></span>'}
+          <span class="pagination-info">${page} / ${totalPages}</span>
+          ${page < totalPages ? `<button class="pagination-btn" data-page="${page + 1}">Siguiente →</button>` : '<span></span>'}
+        </nav>
+      `
+    }
+
+    container.innerHTML = `<div class="catalogo-grid">${html}</div>${pagination}`
+
+    container.querySelectorAll('.pagination-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const p = Number((btn as HTMLElement).dataset.page)
+        renderPage(p)
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      })
+    })
+  }
+
+  async function loadPedales() {
+    const container = document.getElementById('catalogo-data')
+    if (!container) return
+
+    const { data, error } = await supabase
+      .from('pedales')
+      .select('*')
+      .order('category')
+      .order('name')
+
+    if (error || !data?.length) {
+      console.error('Supabase error:', error)
+      container.innerHTML = `
+        <div class="catalogo-empty">
+          <p>No se encontraron pedales.</p>
+          <p class="catalogo-empty-hint">Verifica la conexion con la base de datos.</p>
+        </div>
+      `
+      return
+    }
+
+    allPedales = data.map((p: any) => ({
+      ...p,
+      tags: typeof p.tags === 'string' ? p.tags.split('|').filter(Boolean) : (p.tags ?? []),
+    }))
+    renderPage(1)
+  }
+
+  loadPedales()
+</script>
+
+<style>
+  .catalogo {
+    padding: var(--space-3xl) 0;
+    min-height: 100vh;
+  }
+
+  .catalogo-header {
+    margin-bottom: var(--space-2xl);
+  }
+
+  .catalogo-title {
+    font-size: var(--text-4xl);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    margin-bottom: var(--space-sm);
+  }
+
+  .catalogo-subtitle {
+    font-size: var(--text-lg);
+    color: var(--color-text-secondary);
+  }
+
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-2xl);
+    padding-bottom: var(--space-lg);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .filter-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 9999px;
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    background: transparent;
+    border: 1px solid var(--color-border);
+    transition: all var(--transition-fast);
+    text-decoration: none;
+  }
+
+  .filter-btn:hover {
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  .filter-btn--active {
+    background: var(--color-text);
+    color: var(--color-bg);
+    border-color: var(--color-text);
+  }
+
+  .catalogo-loading {
+    text-align: center;
+    padding: var(--space-3xl);
+    color: var(--color-text-muted);
+  }
+
+  .catalogo-empty {
+    text-align: center;
+    padding: var(--space-3xl);
+    color: var(--color-text-secondary);
+  }
+
+  .catalogo-empty-hint {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    margin-top: var(--space-sm);
+  }
+</style>
+
+<style is:global>
+  .catalogo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: var(--space-md);
+  }
+
+  .catalogo-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    padding: var(--space-lg);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    transition: all 200ms ease;
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .catalogo-card:hover {
+    border-color: var(--color-border);
+    background: var(--color-bg-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+  }
+
+  .catalogo-card-img {
+    width: 100%;
+    aspect-ratio: 4/3;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: var(--color-bg);
+  }
+
+  .catalogo-card-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .catalogo-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .catalogo-card-cat {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-text-muted);
+  }
+
+  .catalogo-card-rarity {
+    font-size: 14px;
+    line-height: 1;
+  }
+
+  .catalogo-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+  }
+
+  .catalogo-card-name {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--color-text);
+  }
+
+  .catalogo-card-typology {
+    font-size: 14px;
+    color: var(--color-text-secondary);
+  }
+
+  .catalogo-card-condition {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 2px 10px;
+    border-radius: 9999px;
+    font-size: 12px;
+    font-weight: 500;
+    width: fit-content;
+  }
+
+  .condition--mint {
+    background: var(--condition-mint-bg);
+    color: var(--condition-mint-text);
+  }
+
+  .condition--box {
+    background: var(--condition-box-bg);
+    color: var(--condition-box-text);
+  }
+
+  .condition--warn {
+    background: var(--condition-warn-bg);
+    color: var(--condition-warn-text);
+  }
+
+  .condition--repair {
+    background: var(--condition-repair-bg);
+    color: var(--condition-repair-text);
+  }
+
+  .condition--neutral {
+    background: var(--condition-neutral-bg);
+    color: var(--condition-neutral-text);
+  }
+
+  .catalogo-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: var(--space-md);
+    border-top: 1px solid var(--color-border-subtle);
+  }
+
+  .catalogo-card-price {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-size: 18px;
+    color: var(--color-text);
+  }
+
+  .catalogo-card-unavailable {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--condition-repair-text);
+    background: var(--condition-repair-bg);
+    padding: 2px 10px;
+    border-radius: 9999px;
+  }
+
+  .catalogo-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-lg);
+    margin-top: var(--space-2xl);
+    padding-top: var(--space-xl);
+    border-top: 1px solid var(--color-border);
+  }
+
+  .pagination-btn {
+    padding: 8px 16px;
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    background: transparent;
+    border: 1px solid var(--color-border);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+  }
+
+  .pagination-btn:hover {
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  .pagination-info {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+  }
+</style>

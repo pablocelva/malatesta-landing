@@ -1,0 +1,311 @@
+---
+export const prerender = false
+import Layout from '../../layouts/Layout.astro'
+import { supabase } from '../../lib/supabase'
+import { CATEGORY_META, RARITY_LABELS } from '../../lib/types'
+import { formatPrice, getConditionLabel, getConditionColor } from '../../lib/utils'
+import type { Pedal } from '../../lib/types'
+
+const { slug } = Astro.params
+const { data: pedal } = await supabase
+  .from('pedales')
+  .select('*')
+  .eq('slug', slug)
+  .single()
+
+if (!pedal) {
+  return Astro.redirect('/catalogo')
+}
+
+const p = pedal as Pedal
+p.tags = typeof p.tags === 'string' ? (p.tags as string).split('|').filter(Boolean) : (p.tags ?? [])
+const category = CATEGORY_META[p.category]
+const condition = getConditionLabel(p.condition, p.condition_detail)
+const condColor = getConditionColor(p.condition)
+const rarityLabel = RARITY_LABELS[p.rarity] ?? 'Comun'
+---
+
+<Layout
+  title={p.name}
+  description={`${p.typology} — ${p.notes}`}
+  ogType="product"
+>
+  <main class="pedal-detail">
+    <div class="container container--narrow">
+      <nav class="pedal-nav">
+        <a href="/catalogo" class="pedal-back">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M10 12L6 8L10 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Volver al catalogo
+        </a>
+      </nav>
+
+      <article class="pedal">
+        <div class="pedal-top">
+          {p.image_url && (
+            <div class="pedal-image">
+              <img src={p.image_url} alt={p.name} />
+            </div>
+          )}
+
+          <header class="pedal-header">
+            <div class="pedal-meta">
+              <span class="pedal-category" style={`--cat-color: var(--cat-${p.category})`}>
+                {category?.emoji} {category?.name}
+              </span>
+              {p.rarity && (
+                <span class="pedal-rarity">
+                  {p.rarity} {rarityLabel}
+                </span>
+              )}
+            </div>
+            <h1 class="pedal-name">{p.name}</h1>
+            <p class="pedal-typology">{p.typology}</p>
+            {p.tags.length > 0 && (
+          <div class="pedal-tags">
+            {p.tags.map((tag) => (
+              <span class="pedal-tag">{tag}</span>
+            ))}
+          </div>
+        )}
+          </header>
+        </div>
+
+        <div class="pedal-info">
+          <div class="pedal-info-row">
+            <span class="pedal-info-label">Tipo</span>
+            <span class="pedal-info-value">{p.type}</span>
+          </div>
+          {condition && (
+            <div class="pedal-info-row">
+              <span class="pedal-info-label">Estado</span>
+              <span class={`pedal-condition-badge condition--${condColor}`}>{condition}</span>
+            </div>
+          )}
+          <div class="pedal-info-row">
+            <span class="pedal-info-label">Precio</span>
+            <span class="pedal-info-value pedal-price">{formatPrice(p.price)}</span>
+          </div>
+          {!p.available && (
+            <div class="pedal-info-row">
+              <span class="pedal-info-label">Disponibilidad</span>
+              <span class="pedal-condition-badge condition--repair">No disponible</span>
+            </div>
+          )}
+        </div>
+
+        
+
+        <div class="pedal-notes">
+          <h2 class="pedal-notes-title">Descripcion</h2>
+          <p class="pedal-notes-text">{p.notes}</p>
+        </div>
+
+        <script type="application/ld+json" set:html={JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'Product',
+          name: p.name,
+          description: p.notes,
+          category: category?.name,
+          brand: {
+            '@type': 'Brand',
+            name: p.name.split(' ')[0],
+          },
+          offers: {
+            '@type': 'Offer',
+            price: p.price,
+            priceCurrency: 'CLP',
+            availability: p.in_use
+              ? 'https://schema.org/InStock'
+              : 'https://schema.org/InStock',
+          },
+        })} />
+      </article>
+    </div>
+  </main>
+</Layout>
+
+<style>
+  .pedal-detail {
+    padding: var(--space-2xl) 0 var(--space-3xl);
+    min-height: 100vh;
+  }
+
+  .pedal-nav {
+    margin-bottom: var(--space-2xl);
+  }
+
+  .pedal-back {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    transition: color var(--transition-fast);
+  }
+
+  .pedal-back:hover {
+    color: var(--color-text);
+  }
+
+  .pedal {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2xl);
+  }
+
+  .pedal-top {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2xl);
+  }
+
+  @media (min-width: 768px) {
+    .pedal-top {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-2xl);
+      align-items: start;
+    }
+  }
+
+  .pedal-image {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    background: var(--color-surface);
+  }
+
+  @media (min-width: 768px) {
+    .pedal-image {
+      position: sticky;
+      top: var(--space-2xl);
+      aspect-ratio: 4/3;
+    }
+  }
+
+  .pedal-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .pedal-header {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .pedal-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+  }
+
+  .pedal-category {
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--color-text-muted);
+  }
+
+  .pedal-rarity {
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+  }
+
+  .pedal-name {
+    font-size: var(--text-4xl);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: var(--leading-tight);
+  }
+
+  .pedal-typology {
+    font-size: var(--text-xl);
+    color: var(--color-text-secondary);
+  }
+
+  .pedal-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+
+  .pedal-info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-md) var(--space-lg);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .pedal-info-row:last-child {
+    border-bottom: none;
+  }
+
+  .pedal-info-label {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .pedal-info-value {
+    font-size: var(--text-base);
+    font-weight: 500;
+    color: var(--color-text);
+  }
+
+  .pedal-price {
+    font-family: var(--font-mono);
+    font-size: var(--text-xl);
+    font-weight: 700;
+  }
+
+  .pedal-condition-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 9999px;
+    font-size: var(--text-sm);
+    font-weight: 500;
+    width: fit-content;
+  }
+
+  .pedal-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+  }
+
+  .pedal-tag {
+    display: inline-block;
+    padding: 4px 12px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 9999px;
+    font-size: var(--text-xs);
+    color: var(--color-text-secondary);
+  }
+
+  .pedal-notes {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .pedal-notes-title {
+    font-size: var(--text-lg);
+    font-weight: 600;
+  }
+
+  .pedal-notes-text {
+    font-size: var(--text-base);
+    color: var(--color-text-secondary);
+    line-height: var(--leading-relaxed);
+  }
+</style>

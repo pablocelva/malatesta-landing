@@ -1,0 +1,117 @@
+---
+import type { Pedal } from '../lib/types'
+import { CATEGORY_META } from '../lib/types'
+import { formatPrice, getConditionLabel, getPedalPath } from '../lib/utils'
+import RarityBadge from './RarityBadge.astro'
+import PriceDisplay from './PriceDisplay.astro'
+
+export interface Props {
+  pedal: Pedal
+}
+
+const { pedal } = Astro.props
+const category = CATEGORY_META[pedal.category]
+const pedalPath = getPedalPath(pedal.slug)
+const condition = getConditionLabel(pedal.condition, pedal.condition_detail)
+---
+
+<a href={pedalPath} class="card">
+  <div class="card-header">
+    <span class="card-category" style={`--cat-color: var(--cat-${pedal.category})`}>
+      {category?.emoji} {category?.name}
+    </span>
+    {pedal.rarity && <RarityBadge rarity={pedal.rarity} size="sm" />}
+  </div>
+
+  <div class="card-body">
+    <h3 class="card-name">{pedal.name}</h3>
+    <p class="card-typology">{pedal.typology}</p>
+    {condition && <p class="card-condition">{condition}</p>}
+  </div>
+
+  <div class="card-footer">
+    <PriceDisplay price={pedal.price} />
+    {pedal.in_use && <span class="card-in-use">En uso</span>}
+  </div>
+</a>
+
+<style>
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    padding: var(--space-lg);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    transition: all var(--transition-base);
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  .card:hover {
+    border-color: var(--color-border);
+    background: var(--color-bg-hover);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
+  }
+
+  .card-category {
+    font-size: var(--text-xs);
+    font-weight: 500;
+    color: var(--color-text-muted);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .card-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    flex: 1;
+  }
+
+  .card-name {
+    font-size: var(--text-base);
+    font-weight: 600;
+    line-height: var(--leading-tight);
+    color: var(--color-text);
+  }
+
+  .card-typology {
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+  }
+
+  .card-condition {
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+    margin-top: var(--space-xs);
+  }
+
+  .card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: var(--space-md);
+    border-top: 1px solid var(--color-border-subtle);
+  }
+
+  .card-in-use {
+    font-size: var(--text-xs);
+    font-weight: 500;
+    color: var(--color-accent);
+    background: rgba(245, 158, 11, 0.1);
+    padding: 2px 8px;
+    border-radius: 9999px;
+  }
+</style>

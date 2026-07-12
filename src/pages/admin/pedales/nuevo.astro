@@ -1,0 +1,403 @@
+---
+export const prerender = false
+import AdminLayout from '../../../layouts/AdminLayout.astro'
+import { CATEGORY_META, CATEGORY_SLUGS } from '../../../lib/types'
+---
+
+<AdminLayout title="Nuevo Pedal">
+  <form id="pedal-form" class="pedal-form">
+    <div class="form-grid">
+      <div class="form-section">
+        <h2 class="form-section-title">Informacion basica</h2>
+
+        <div class="form-group">
+          <label for="name" class="form-label">Nombre *</label>
+          <input type="text" id="name" name="name" class="form-input" required />
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="category" class="form-label">Categoria *</label>
+            <select id="category" name="category" class="form-select" required>
+              {CATEGORY_SLUGS.map((slug) => (
+                <option value={slug}>{CATEGORY_META[slug].emoji} {CATEGORY_META[slug].name}</option>
+              ))}
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="type" class="form-label">Tipo</label>
+            <input type="text" id="type" name="type" class="form-input" placeholder="Clean OD / OD" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="typology" class="form-label">Tipologia</label>
+            <input type="text" id="typology" name="typology" class="form-input" placeholder="Tube Screamer" />
+          </div>
+          <div class="form-group">
+            <label for="rarity" class="form-label">Rareza</label>
+            <select id="rarity" name="rarity" class="form-select">
+              <option value="">Comun</option>
+              <option value="🔹">🔹 Poco comun</option>
+              <option value="🔷">🔷 Raro</option>
+              <option value="💎">💎 Ultra raro</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h2 class="form-section-title">Precios</h2>
+
+        <div class="form-row form-row--prices">
+          <div class="form-group">
+            <label for="price" class="form-label">Precio publico (CLP) *</label>
+            <input type="number" id="price" name="price" class="form-input form-input--mono" required min="0" />
+          </div>
+          <div class="form-group">
+            <label for="price_floor" class="form-label">Precio piso</label>
+            <input type="number" id="price_floor" name="price_floor" class="form-input form-input--mono" min="0" />
+          </div>
+          <div class="form-group">
+            <label for="price_optimistic" class="form-label">Precio optimista</label>
+            <input type="number" id="price_optimistic" name="price_optimistic" class="form-input form-input--mono" min="0" />
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h2 class="form-section-title">Estado</h2>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="condition" class="form-label">Condicion</label>
+            <select id="condition" name="condition" class="form-select">
+              <option value="MINT">MINT</option>
+              <option value="Muy bueno">Muy bueno</option>
+              <option value="Buen estado">Buen estado</option>
+              <option value="Detalles esteticos">Detalles esteticos</option>
+              <option value="Marcas de uso">Marcas de uso</option>
+              <option value="Reparar">Reparar</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="condition_detail" class="form-label">Detalle de condicion</label>
+            <input type="text" id="condition_detail" name="condition_detail" class="form-input" placeholder="Con caja" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group form-group--checkbox">
+            <label class="form-checkbox-label">
+              <input type="checkbox" id="in_use" name="in_use" class="form-checkbox" />
+              <span>En uso actual</span>
+            </label>
+          </div>
+          <div class="form-group form-group--checkbox">
+            <label class="form-checkbox-label">
+              <input type="checkbox" id="available" name="available" class="form-checkbox" checked />
+              <span>Disponible para venta</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h2 class="form-section-title">Detalles</h2>
+
+        <div class="form-group">
+          <label for="tags" class="form-label">Tags</label>
+          <input type="text" id="tags" name="tags" class="form-input" placeholder="Boutique, Tube Screamer, Clasico" />
+          <p class="form-hint">Separar con coma</p>
+        </div>
+
+        <div class="form-group">
+          <label for="notes" class="form-label">Notas / Descripcion</label>
+          <textarea id="notes" name="notes" class="form-textarea" rows="4"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="image_url" class="form-label">URL de imagen</label>
+          <input type="url" id="image_url" name="image_url" class="form-input" placeholder="https://..." />
+        </div>
+      </div>
+    </div>
+
+    <div id="form-error" class="form-error" hidden></div>
+    <div id="form-success" class="form-success" hidden></div>
+
+    <div class="form-actions">
+      <a href="/admin" class="form-btn form-btn--secondary">Cancelar</a>
+      <button type="submit" class="form-btn form-btn--primary" id="submit-btn">
+        Crear pedal
+      </button>
+    </div>
+  </form>
+</AdminLayout>
+
+<script>
+  import { supabase } from '../../../lib/supabase'
+  import { generateSlug } from '../../../lib/utils'
+
+  async function checkAuth() {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      window.location.href = '/admin/login'
+      return false
+    }
+    return true
+  }
+
+  const form = document.getElementById('pedal-form') as HTMLFormElement
+  const errorEl = document.getElementById('form-error') as HTMLElement
+  const successEl = document.getElementById('form-success') as HTMLElement
+  const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement
+
+  async function init() {
+    if (!(await checkAuth())) return
+  }
+
+  init()
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault()
+    if (!(await checkAuth())) return
+
+    errorEl.hidden = true
+    successEl.hidden = true
+    submitBtn.disabled = true
+    submitBtn.textContent = 'Creando...'
+
+    const fd = new FormData(form)
+    const tagsRaw = fd.get('tags') as string
+    const tags = tagsRaw ? tagsRaw.split(',').map((t) => t.trim()).filter(Boolean) : []
+
+    const pedal = {
+      name: fd.get('name') as string,
+      slug: generateSlug(fd.get('name') as string),
+      category: fd.get('category') as string,
+      category_emoji: '',
+      type: fd.get('type') as string,
+      typology: fd.get('typology') as string,
+      tags: tags.join('|'),
+      rarity: fd.get('rarity') as string,
+      condition: fd.get('condition') as string,
+      condition_detail: fd.get('condition_detail') as string,
+      price: Number(fd.get('price')) || 0,
+      price_floor: Number(fd.get('price_floor')) || 0,
+      price_optimistic: Number(fd.get('price_optimistic')) || 0,
+      in_use: fd.get('in_use') === 'on',
+      available: fd.get('available') === 'on',
+      image_url: fd.get('image_url') as string,
+      notes: fd.get('notes') as string,
+    }
+
+    const { error } = await supabase.from('pedales').insert(pedal)
+
+    if (error) {
+      errorEl.textContent = error.message
+      errorEl.hidden = false
+      submitBtn.disabled = false
+      submitBtn.textContent = 'Crear pedal'
+      return
+    }
+
+    successEl.textContent = 'Pedal creado exitosamente. Redirigiendo...'
+    successEl.hidden = false
+    setTimeout(() => {
+      window.location.href = `/admin/pedales/${pedal.slug}`
+    }, 1000)
+  })
+</script>
+
+<style>
+  .pedal-form {
+    max-width: 900px;
+  }
+
+  .form-grid {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2xl);
+  }
+
+  .form-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .form-section-title {
+    font-size: var(--text-base);
+    font-weight: 600;
+    padding-bottom: var(--space-sm);
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-md);
+  }
+
+  .form-row--prices {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+  }
+
+  .form-group--checkbox {
+    justify-content: center;
+  }
+
+  .form-label {
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--color-text-secondary);
+  }
+
+  .form-input,
+  .form-select,
+  .form-textarea {
+    padding: 10px 14px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text);
+    font-size: var(--text-sm);
+    transition: border-color var(--transition-fast);
+    width: 100%;
+  }
+
+  .form-input:focus,
+  .form-select:focus,
+  .form-textarea:focus {
+    outline: none;
+    border-color: var(--color-accent);
+  }
+
+  .form-input--mono {
+    font-family: var(--font-mono);
+  }
+
+  .form-select {
+    appearance: none;
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23737373' stroke-width='2' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+  }
+
+  .form-textarea {
+    resize: vertical;
+    min-height: 80px;
+  }
+
+  .form-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+  }
+
+  .form-checkbox {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--color-accent);
+  }
+
+  .form-hint {
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+  }
+
+  .form-error {
+    padding: var(--space-sm) var(--space-md);
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: var(--radius-md);
+    color: var(--color-danger);
+    font-size: var(--text-sm);
+    margin-top: var(--space-md);
+  }
+
+  .form-success {
+    padding: var(--space-sm) var(--space-md);
+    background: rgba(34, 197, 94, 0.1);
+    border: 1px solid rgba(34, 197, 94, 0.2);
+    border-radius: var(--radius-md);
+    color: var(--color-success);
+    font-size: var(--text-sm);
+    margin-top: var(--space-md);
+  }
+
+  .form-actions {
+    display: flex;
+    gap: var(--space-md);
+    justify-content: flex-end;
+    margin-top: var(--space-2xl);
+    padding-top: var(--space-lg);
+    border-top: 1px solid var(--color-border);
+  }
+
+  .form-btn {
+    padding: 10px 20px;
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    text-decoration: none;
+    transition: all var(--transition-fast);
+    border: none;
+    cursor: pointer;
+  }
+
+  .form-btn--primary {
+    background: var(--color-text);
+    color: var(--color-bg);
+  }
+
+  .form-btn--primary:hover:not(:disabled) {
+    background: var(--color-text-secondary);
+    color: var(--color-bg);
+  }
+
+  .form-btn--secondary {
+    background: transparent;
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border);
+  }
+
+  .form-btn--secondary:hover {
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  .form-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  @media (max-width: 640px) {
+    .form-row,
+    .form-row--prices {
+      grid-template-columns: 1fr;
+    }
+
+    .form-actions {
+      flex-direction: column-reverse;
+    }
+
+    .form-btn {
+      width: 100%;
+      justify-content: center;
+      text-align: center;
+    }
+  }
+</style>

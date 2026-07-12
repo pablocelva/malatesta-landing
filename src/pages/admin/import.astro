@@ -1,0 +1,445 @@
+---
+export const prerender = false
+import AdminLayout from '../../layouts/AdminLayout.astro'
+---
+
+<AdminLayout title="Importar CSV">
+  <div class="import-page">
+    <div class="import-section">
+      <h2 class="import-section-title">Subir archivo CSV</h2>
+      <p class="import-section-desc">
+        El CSV debe tener columnas: name, slug, category, type, typology, tags, rarity, condition, condition_detail, price, price_floor, price_optimistic, in_use, available, notes
+      </p>
+
+      <div id="drop-zone" class="drop-zone">
+        <div class="drop-zone-content">
+          <svg class="drop-zone-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <p class="drop-zone-text">Arrastra un CSV aqui o</p>
+          <label class="drop-zone-btn">
+            Seleccionar archivo
+            <input type="file" id="csv-input" accept=".csv" hidden />
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div id="preview-section" class="import-section" hidden>
+      <h2 class="import-section-title">Vista previa</h2>
+      <div id="preview-stats" class="preview-stats"></div>
+      <div id="preview-table" class="preview-table-wrapper"></div>
+
+      <div class="preview-actions">
+        <button id="cancel-btn" class="import-btn import-btn--secondary">Cancelar</button>
+        <button id="import-btn" class="import-btn import-btn--primary">
+          Importar <span id="import-count"></span>
+        </button>
+      </div>
+    </div>
+
+    <div id="result-section" class="import-section" hidden>
+      <h2 class="import-section-title">Resultado</h2>
+      <div id="result-content"></div>
+    </div>
+  </div>
+</AdminLayout>
+
+<script>
+  import { supabase } from '../../lib/supabase'
+
+  async function checkAuth() {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      window.location.href = '/admin/login'
+      return false
+    }
+    return true
+  }
+
+  let parsedData: Record<string, string>[] = []
+
+  async function init() {
+    if (!(await checkAuth())) return
+  }
+
+  init()
+
+  function parseCSV(text: string): Record<string, string>[] {
+    const lines = text.split('\n').filter((l) => l.trim())
+    if (lines.length < 2) return []
+
+    const headers = lines[0].split(',').map((h) => h.trim().replace(/^"|"$/g, ''))
+
+    return lines.slice(1).map((line) => {
+      const values: string[] = []
+      let current = ''
+      let inQuotes = false
+
+      for (const char of line) {
+        if (char === '"') {
+          inQuotes = !inQuotes
+        } else if (char === ',' && !inQuotes) {
+          values.push(current.trim())
+          current = ''
+        } else {
+          current += char
+        }
+      }
+      values.push(current.trim())
+
+      const row: Record<string, string> = {}
+      headers.forEach((h, i) => {
+        row[h] = values[i] ?? ''
+      })
+      return row
+    })
+  }
+
+  const dropZone = document.getElementById('drop-zone')!
+  const csvInput = document.getElementById('csv-input') as HTMLInputElement
+  const previewSection = document.getElementById('preview-section')!
+  const resultSection = document.getElementById('result-section')!
+
+  function handleFile(file: File) {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const text = e.target?.result as string
+      parsedData = parseCSV(text)
+      showPreview()
+    }
+    reader.readAsText(file)
+  }
+
+  csvInput?.addEventListener('change', (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0]
+    if (file) handleFile(file)
+  })
+
+  dropZone?.addEventListener('dragover', (e) => {
+    e.preventDefault()
+    dropZone.classList.add('drop-zone--active')
+  })
+
+  dropZone?.addEventListener('dragleave', () => {
+    dropZone.classList.remove('drop-zone--active')
+  })
+
+  dropZone?.addEventListener('drop', (e) => {
+    e.preventDefault()
+    dropZone.classList.remove('drop-zone--active')
+    const file = e.dataTransfer?.files[0]
+    if (file) handleFile(file)
+  })
+
+  function showPreview() {
+    dropZone.hidden = true
+    previewSection.hidden = false
+
+    const stats = document.getElementById('preview-stats')!
+    stats.innerHTML = `
+      <div class="preview-stat">
+        <span class="preview-stat-value">${parsedData.length}</span>
+        <span class="preview-stat-label">filas encontradas</span>
+      </div>
+    `
+
+    const table = document.getElementById('preview-table')!
+    const headers = ['name', 'category', 'type', 'price', 'condition']
+    const rows = parsedData
+      .slice(0, 10)
+      .map(
+        (row) => `
+      <tr>
+        ${headers.map((h) => `<td class="preview-cell">${row[h] ?? ''}</td>`).join('')}
+      </tr>
+    `
+      )
+      .join('')
+
+    table.innerHTML = `
+      <table class="preview-data-table">
+        <thead>
+          <tr>${headers.map((h) => `<th>${h}</th>`).join('')}</tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+      ${parsedData.length > 10 ? `<p class="preview-more">... y ${parsedData.length - 10} filas mas</p>` : ''}
+    `
+
+    document.getElementById('import-count')!.textContent = `(${parsedData.length})`
+  }
+
+  document.getElementById('cancel-btn')?.addEventListener('click', () => {
+    parsedData = []
+    previewSection.hidden = true
+    dropZone.hidden = false
+  })
+
+  document.getElementById('import-btn')?.addEventListener('click', async () => {
+    if (!(await checkAuth())) return
+
+    const btn = document.getElementById('import-btn') as HTMLButtonElement
+    btn.disabled = true
+    btn.textContent = 'Importando...'
+
+    const rows = parsedData.map((row) => ({
+      name: row.name,
+      slug: row.slug || row.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+      category: row.category,
+      category_emoji: row.category_emoji ?? '',
+      type: row.type ?? '',
+      typology: row.typology ?? '',
+      tags: row.tags ? row.tags.split('|').map((t: string) => t.trim()) : [],
+      rarity: row.rarity ?? '',
+      condition: row.condition ?? 'MINT',
+      condition_detail: row.condition_detail ?? '',
+      price: Number(row.price) || 0,
+      price_floor: Number(row.price_floor) || 0,
+      price_optimistic: Number(row.price_optimistic) || 0,
+      in_use: row.in_use === 'true',
+      available: row.available !== 'false',
+      notes: row.notes ?? '',
+    }))
+
+    const { data, error } = await supabase.from('pedales').upsert(rows, { onConflict: 'slug' })
+
+    previewSection.hidden = true
+    resultSection.hidden = false
+
+    const resultContent = document.getElementById('result-content')!
+
+    if (error) {
+      resultContent.innerHTML = `
+        <div class="result-error">
+          <p>Error al importar: ${error.message}</p>
+        </div>
+      `
+    } else {
+      resultContent.innerHTML = `
+        <div class="result-success">
+          <p>${rows.length} pedales importados exitosamente.</p>
+          <a href="/admin" class="import-btn import-btn--primary">Volver al dashboard</a>
+        </div>
+      `
+    }
+  })
+</script>
+
+<style>
+  .import-page {
+    max-width: 900px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2xl);
+  }
+
+  .import-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .import-section-title {
+    font-size: var(--text-base);
+    font-weight: 600;
+    color: var(--color-text-secondary);
+  }
+
+  .import-section-desc {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    line-height: var(--leading-relaxed);
+  }
+
+  .drop-zone {
+    border: 2px dashed var(--color-border);
+    border-radius: var(--radius-xl);
+    padding: var(--space-3xl);
+    text-align: center;
+    transition: all var(--transition-fast);
+    background: var(--color-surface);
+  }
+
+  .drop-zone--active {
+    border-color: var(--color-accent);
+    background: rgba(245, 158, 11, 0.05);
+  }
+
+  .drop-zone-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-md);
+  }
+
+  .drop-zone-icon {
+    color: var(--color-text-muted);
+  }
+
+  .drop-zone-text {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+
+  .drop-zone-btn {
+    display: inline-flex;
+    padding: 8px 16px;
+    background: var(--color-text);
+    color: var(--color-bg);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+  }
+
+  .drop-zone-btn:hover {
+    background: var(--color-text-secondary);
+  }
+
+  .preview-stats {
+    display: flex;
+    gap: var(--space-lg);
+  }
+
+  .preview-stat {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-sm);
+  }
+
+  .preview-stat-value {
+    font-family: var(--font-mono);
+    font-size: var(--text-2xl);
+    font-weight: 700;
+  }
+
+  .preview-stat-label {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+
+  .preview-table-wrapper {
+    overflow-x: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+  }
+
+  .preview-data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+  }
+
+  .preview-data-table th {
+    padding: var(--space-md) var(--space-lg);
+    text-align: left;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    border-bottom: 1px solid var(--color-border);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: var(--text-xs);
+  }
+
+  .preview-cell {
+    padding: var(--space-sm) var(--space-lg);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .preview-more {
+    padding: var(--space-md);
+    text-align: center;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+
+  .preview-actions {
+    display: flex;
+    gap: var(--space-md);
+    justify-content: flex-end;
+  }
+
+  .import-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: 10px 20px;
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    text-decoration: none;
+    transition: all var(--transition-fast);
+    border: none;
+    cursor: pointer;
+  }
+
+  .import-btn--primary {
+    background: var(--color-text);
+    color: var(--color-bg);
+  }
+
+  .import-btn--primary:hover:not(:disabled) {
+    background: var(--color-text-secondary);
+    color: var(--color-bg);
+  }
+
+  .import-btn--secondary {
+    background: transparent;
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border);
+  }
+
+  .import-btn--secondary:hover {
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  .import-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .result-success {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    align-items: flex-start;
+    padding: var(--space-lg);
+    background: rgba(34, 197, 94, 0.1);
+    border: 1px solid rgba(34, 197, 94, 0.2);
+    border-radius: var(--radius-lg);
+    color: var(--color-success);
+  }
+
+  .result-error {
+    padding: var(--space-lg);
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: var(--radius-lg);
+    color: var(--color-danger);
+  }
+
+  @media (max-width: 640px) {
+    .drop-zone {
+      padding: var(--space-2xl);
+    }
+
+    .drop-zone-icon {
+      width: 32px;
+      height: 32px;
+    }
+
+    .preview-actions {
+      flex-direction: column-reverse;
+    }
+
+    .import-btn {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+</style>
