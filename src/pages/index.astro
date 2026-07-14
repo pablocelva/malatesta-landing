@@ -17,8 +17,8 @@ const stats = [
 ---
 
 <Layout
-  title="Malatesta"
-  description="Catalogo unificado de equipos musicales y pedales de guitarra boutique, vintage y de coleccion."
+  title="La Malatesta"
+  description="Equipos musicales, pedales boutique, vintage y de coleccion. Guitarras, cables, overdrives, fuzzes, delays y mas."
 >
   <Hero />
 
@@ -26,7 +26,7 @@ const stats = [
     <div class="container">
       <div class="section-header">
         <h2 class="section-title">Categorias</h2>
-        <p class="section-subtitle">Explora el catalogo por tipo de efecto</p>
+        <p class="section-subtitle">Explora el catalogo</p>
       </div>
       <div class="categories-grid">
         {categories.map((cat) => (
@@ -45,9 +45,9 @@ const stats = [
   <section class="cta">
     <div class="container container--narrow">
       <div class="cta-card">
-        <h2 class="cta-title">catalogo completo</h2>
+        <h2 class="cta-title">Catalogo Completo</h2>
         <p class="cta-text">
-          Accede al inventario completo con precios, estados, rareza y observaciones detalladas de cada pedal.
+          Accede al inventario completo con precios, estados, rareza y observaciones detalladas de cada producto.
         </p>
         <a href="/catalogo" class="cta-btn">
           Ver todos los equipos
@@ -62,7 +62,7 @@ const stats = [
   <footer class="footer">
     <div class="container">
       <p class="footer-text">
-        Malatesta &copy; {new Date().getFullYear()}
+        La <span class="footer-highline">Malatesta</span> &copy; {new Date().getFullYear()}
       </p>
     </div>
   </footer>
@@ -189,6 +189,11 @@ const stats = [
   .footer-text {
     text-align: center;
     font-size: var(--text-sm);
-    color: var(--color-text-muted);
+    color: var(--color-text);
+  }
+
+  .footer-highline {
+    /* font-weight: 600; */
+    color: var(--color-accent);
   }
 </style>
