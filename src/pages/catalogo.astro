@@ -1,6 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro'
 import CatalogSearch from '../components/CatalogSearch.astro'
+import CatalogSort from '../components/CatalogSort.astro'
 import { CATEGORY_META, CATEGORY_SLUGS } from '../lib/types'
 
 export const revalidate = 60
@@ -22,7 +23,10 @@ const categories = CATEGORY_SLUGS.map((slug) => ({
         <p class="catalogo-subtitle">50 pedales organizados por categoria</p>
       </header>
 
-      <CatalogSearch />
+      <div class="catalogo-controls">
+        <CatalogSearch />
+        <CatalogSort />
+      </div>
 
       <nav class="filters" aria-label="Categorias">
         {categories.map((cat) => (
@@ -49,16 +53,90 @@ const categories = CATEGORY_SLUGS.map((slug) => ({
   let currentPage = 1
   let allPedales: Pedal[] = []
   let searchQuery = ''
+  let sortOption = 'category'
+
+  function sortPedales(pedals: Pedal[]): Pedal[] {
+    const sorted = [...pedals]
+    switch (sortOption) {
+      case 'name-asc':
+        return sorted.sort((a, b) => a.name.localeCompare(b.name))
+      case 'name-desc':
+        return sorted.sort((a, b) => b.name.localeCompare(a.name))
+      case 'price-asc':
+        return sorted.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity))
+      case 'price-desc':
+        return sorted.sort((a, b) => (b.price ?? 0) - (a.price ?? 0))
+      case 'available':
+        return sorted.sort((a, b) => {
+          if (a.available !== b.available) return a.available ? -1 : 1
+          return a.name.localeCompare(b.name)
+        })
+      case 'newest':
+        return sorted.sort((a, b) => {
+          const dateA = a.created_at ? new Date(a.created_at).getTime() : 0
+          const dateB = b.created_at ? new Date(b.created_at).getTime() : 0
+          return dateB - dateA
+        })
+      case 'category':
+      default:
+        return sorted.sort((a, b) => {
+          const catCmp = a.category.localeCompare(b.category)
+          if (catCmp !== 0) return catCmp
+          return a.name.localeCompare(b.name)
+        })
+    }
+  }
 
   function getFilteredPedales(): Pedal[] {
-    if (!searchQuery) return allPedales
-    const q = searchQuery.toLowerCase()
-    return allPedales.filter((p) =>
-      p.name.toLowerCase().includes(q) ||
-      p.typology.toLowerCase().includes(q) ||
-      p.type.toLowerCase().includes(q) ||
-      p.tags.some((t) => t.toLowerCase().includes(q))
-    )
+    let result = allPedales
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase()
+      result = result.filter((p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.typology.toLowerCase().includes(q) ||
+        p.type.toLowerCase().includes(q) ||
+        p.tags.some((t) => t.toLowerCase().includes(q))
+      )
+    }
+    return sortPedales(result)
+  }
+
+  function updateURL(type: 'search' | 'sort' | 'page') {
+    const url = new URL(window.location.href)
+    if (searchQuery) {
+      url.searchParams.set('q', searchQuery)
+    } else {
+      url.searchParams.delete('q')
+    }
+    if (sortOption !== 'category') {
+      url.searchParams.set('sort', sortOption)
+    } else {
+      url.searchParams.delete('sort')
+    }
+    if (currentPage > 1) {
+      url.searchParams.set('page', String(currentPage))
+    } else {
+      url.searchParams.delete('page')
+    }
+    if (type === 'page') {
+      history.pushState({}, '', url)
+    } else {
+      history.replaceState({}, '', url)
+    }
+  }
+
+  function readURL() {
+    const params = new URLSearchParams(window.location.search)
+    searchQuery = params.get('q') ?? ''
+    sortOption = params.get('sort') ?? 'category'
+    currentPage = parseInt(params.get('page') ?? '1', 10) || 1
+  }
+
+  function syncInputsFromState() {
+    const searchInput = document.getElementById('catalog-search-input') as HTMLInputElement
+    const sortSelect = document.getElementById('catalog-sort-select') as HTMLSelectElement
+    if (searchInput) searchInput.value = searchQuery
+    if (sortSelect) sortSelect.value = sortOption
   }
 
   function renderCard(pedal: Pedal) {
@@ -85,7 +163,7 @@ const categories = CATEGORY_SLUGS.map((slug) => ({
     `
   }
 
-  function renderPage(page: number) {
+  function renderPage(page: number, pushState = false) {
     const container = document.getElementById('catalogo-data')
     if (!container) return
 
@@ -113,10 +191,12 @@ const categories = CATEGORY_SLUGS.map((slug) => ({
     container.querySelectorAll('.pagination-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         const p = Number((btn as HTMLElement).dataset.page)
-        renderPage(p)
+        renderPage(p, true)
         window.scrollTo({ top: 0, behavior: 'smooth' })
       })
     })
+
+    updateURL(pushState ? 'page' : 'search')
   }
 
   async function loadPedales() {
@@ -144,12 +224,16 @@ const categories = CATEGORY_SLUGS.map((slug) => ({
       ...p,
       tags: typeof p.tags === 'string' ? p.tags.split('|').filter(Boolean) : (p.tags ?? []),
     }))
-    renderPage(1)
+
+    readURL()
+    syncInputsFromState()
+    renderPage(currentPage)
   }
 
   loadPedales()
 
   const searchInput = document.getElementById('catalog-search-input') as HTMLInputElement
+  const sortSelect = document.getElementById('catalog-sort-select') as HTMLSelectElement
   let searchTimeout: ReturnType<typeof setTimeout>
 
   searchInput?.addEventListener('input', () => {
@@ -158,6 +242,17 @@ const categories = CATEGORY_SLUGS.map((slug) => ({
       searchQuery = searchInput.value.trim()
       renderPage(1)
     }, 200)
+  })
+
+  sortSelect?.addEventListener('change', () => {
+    sortOption = sortSelect.value
+    renderPage(1)
+  })
+
+  window.addEventListener('popstate', () => {
+    readURL()
+    syncInputsFromState()
+    renderPage(currentPage)
   })
 </script>
 
@@ -181,6 +276,23 @@ const categories = CATEGORY_SLUGS.map((slug) => ({
   .catalogo-subtitle {
     font-size: var(--text-lg);
     color: var(--color-text-secondary);
+  }
+
+  .catalogo-controls {
+    display: flex;
+    gap: var(--space-md);
+    align-items: stretch;
+    margin-bottom: var(--space-2xl);
+  }
+
+  .catalogo-controls > :first-child {
+    flex: 1;
+  }
+
+  @media (max-width: 640px) {
+    .catalogo-controls {
+      flex-direction: column;
+    }
   }
 
   .filters {

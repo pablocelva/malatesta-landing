@@ -1,6 +1,8 @@
 ---
 export const prerender = false
 import Layout from '../../layouts/Layout.astro'
+import CatalogSearch from '../../components/CatalogSearch.astro'
+import CatalogSort from '../../components/CatalogSort.astro'
 import { CATEGORY_META, CATEGORY_SLUGS } from '../../lib/types'
 
 export const revalidate = 60
@@ -51,6 +53,11 @@ const allCategories = CATEGORY_SLUGS.map((s) => ({
         ))}
       </nav>
 
+      <div class="categoria-controls">
+        <CatalogSearch />
+        <CatalogSort />
+      </div>
+
       <div id="categoria-data" data-slug={slug}>
         <p class="categoria-loading">Cargando pedales...</p>
       </div>
@@ -68,9 +75,91 @@ const allCategories = CATEGORY_SLUGS.map((s) => ({
 
   const PER_PAGE = 12
   let currentPage = 1
-  let allPedales = []
+  let allPedales: any[] = []
+  let searchQuery = ''
+  let sortOption = 'category'
 
-  function renderCard(pedal) {
+  function sortPedales(pedals: any[]): any[] {
+    const sorted = [...pedals]
+    switch (sortOption) {
+      case 'name-asc':
+        return sorted.sort((a: any, b: any) => a.name.localeCompare(b.name))
+      case 'name-desc':
+        return sorted.sort((a: any, b: any) => b.name.localeCompare(a.name))
+      case 'price-asc':
+        return sorted.sort((a: any, b: any) => (a.price ?? Infinity) - (b.price ?? Infinity))
+      case 'price-desc':
+        return sorted.sort((a: any, b: any) => (b.price ?? 0) - (a.price ?? 0))
+      case 'available':
+        return sorted.sort((a: any, b: any) => {
+          if (a.available !== b.available) return a.available ? -1 : 1
+          return a.name.localeCompare(b.name)
+        })
+      case 'newest':
+        return sorted.sort((a: any, b: any) => {
+          const dateA = a.created_at ? new Date(a.created_at).getTime() : 0
+          const dateB = b.created_at ? new Date(b.created_at).getTime() : 0
+          return dateB - dateA
+        })
+      case 'category':
+      default:
+        return sorted.sort((a: any, b: any) => a.name.localeCompare(b.name))
+    }
+  }
+
+  function getFilteredPedales(): any[] {
+    let result = allPedales
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase()
+      result = result.filter((p: any) =>
+        p.name.toLowerCase().includes(q) ||
+        p.typology.toLowerCase().includes(q) ||
+        p.type.toLowerCase().includes(q) ||
+        (typeof p.tags === 'string' ? p.tags.split('|') : p.tags ?? []).some((t: string) => t.toLowerCase().includes(q))
+      )
+    }
+    return sortPedales(result)
+  }
+
+  function updateURL(type: 'search' | 'sort' | 'page') {
+    const url = new URL(window.location.href)
+    if (searchQuery) {
+      url.searchParams.set('q', searchQuery)
+    } else {
+      url.searchParams.delete('q')
+    }
+    if (sortOption !== 'category') {
+      url.searchParams.set('sort', sortOption)
+    } else {
+      url.searchParams.delete('sort')
+    }
+    if (currentPage > 1) {
+      url.searchParams.set('page', String(currentPage))
+    } else {
+      url.searchParams.delete('page')
+    }
+    if (type === 'page') {
+      history.pushState({}, '', url)
+    } else {
+      history.replaceState({}, '', url)
+    }
+  }
+
+  function readURL() {
+    const params = new URLSearchParams(window.location.search)
+    searchQuery = params.get('q') ?? ''
+    sortOption = params.get('sort') ?? 'category'
+    currentPage = parseInt(params.get('page') ?? '1', 10) || 1
+  }
+
+  function syncInputsFromState() {
+    const searchInput = document.getElementById('catalog-search-input') as HTMLInputElement
+    const sortSelect = document.getElementById('catalog-sort-select') as HTMLSelectElement
+    if (searchInput) searchInput.value = searchQuery
+    if (sortSelect) sortSelect.value = sortOption
+  }
+
+  function renderCard(pedal: any) {
     const category = CATEGORY_META[pedal.category]
     const condition = getConditionLabel(pedal.condition, pedal.condition_detail)
     const condColor = getConditionColor(pedal.condition)
@@ -96,23 +185,23 @@ const allCategories = CATEGORY_SLUGS.map((s) => ({
     `
   }
 
-  function renderPage(page) {
+  function renderPage(page: number, pushState = false) {
     const container = document.getElementById('categoria-data')
     const countEl = document.getElementById('categoria-count')
     if (!container) return
 
     currentPage = page
+    const filtered = getFilteredPedales()
     const start = (page - 1) * PER_PAGE
-    const pagePedales = allPedales.slice(start, start + PER_PAGE)
-    const totalPages = Math.ceil(allPedales.length / PER_PAGE)
+    const pagePedales = filtered.slice(start, start + PER_PAGE)
+    const totalPages = Math.ceil(filtered.length / PER_PAGE)
 
-    if (countEl) countEl.textContent = `${allPedales.length} pedales`
+    if (countEl) countEl.textContent = `${filtered.length} pedales`
 
     const html = pagePedales.map(renderCard).join('')
 
     let pagination = ''
     if (totalPages > 1) {
-      const pages = Array.from({ length: totalPages }, (_, i) => i + 1)
       pagination = `
         <nav class="cat-pagination" aria-label="Paginacion">
           ${page > 1 ? `<button class="pagination-btn" data-page="${page - 1}">← Anterior</button>` : '<span></span>'}
@@ -126,11 +215,13 @@ const allCategories = CATEGORY_SLUGS.map((s) => ({
 
     container.querySelectorAll('.pagination-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const p = Number(btn.dataset.page)
-        renderPage(p)
+        const p = Number((btn as HTMLElement).dataset.page)
+        renderPage(p, true)
         window.scrollTo({ top: 0, behavior: 'smooth' })
       })
     })
+
+    updateURL(pushState ? 'page' : 'search')
   }
 
   async function loadPedales() {
@@ -153,14 +244,40 @@ const allCategories = CATEGORY_SLUGS.map((s) => ({
       return
     }
 
-    allPedales = data.map((p) => ({
+    allPedales = data.map((p: any) => ({
       ...p,
       tags: typeof p.tags === 'string' ? p.tags.split('|').filter(Boolean) : (p.tags ?? []),
     }))
-    renderPage(1)
+
+    readURL()
+    syncInputsFromState()
+    renderPage(currentPage)
   }
 
   loadPedales()
+
+  const searchInput = document.getElementById('catalog-search-input') as HTMLInputElement
+  const sortSelect = document.getElementById('catalog-sort-select') as HTMLSelectElement
+  let searchTimeout: ReturnType<typeof setTimeout>
+
+  searchInput?.addEventListener('input', () => {
+    clearTimeout(searchTimeout)
+    searchTimeout = setTimeout(() => {
+      searchQuery = searchInput.value.trim()
+      renderPage(1)
+    }, 200)
+  })
+
+  sortSelect?.addEventListener('change', () => {
+    sortOption = sortSelect.value
+    renderPage(1)
+  })
+
+  window.addEventListener('popstate', () => {
+    readURL()
+    syncInputsFromState()
+    renderPage(currentPage)
+  })
 </script>
 
 <style>
@@ -216,6 +333,23 @@ const allCategories = CATEGORY_SLUGS.map((s) => ({
     margin-bottom: var(--space-2xl);
     padding-bottom: var(--space-lg);
     border-bottom: 1px solid var(--color-border);
+  }
+
+  .categoria-controls {
+    display: flex;
+    gap: var(--space-md);
+    align-items: stretch;
+    margin-bottom: var(--space-2xl);
+  }
+
+  .categoria-controls > :first-child {
+    flex: 1;
+  }
+
+  @media (max-width: 640px) {
+    .categoria-controls {
+      flex-direction: column;
+    }
   }
 
   .filter-btn {
