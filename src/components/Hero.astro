@@ -6,37 +6,42 @@
     <div class="hero-gradient"></div>
     <div class="hero-grid"></div>
   </div>
-  <div class="hero-content container">
-    <!-- <div class="hero-badge">
-      <span class="hero-badge-dot"></span>
-      Inventario de pedales de guitarra
-    </div> -->
-    <h1 class="hero-title">
-      <span class="hero-title-line">La </span>
-      <span class="hero-title-line hero-title-accent"> Malatesta</span>
-    </h1>
-    <p class="hero-subtitle">
-      Equipos musicales, pedales boutique, vintage y de coleccion. Guitarras, cables, overdrives, fuzzes, delays y mas.
-    </p>
-    <div class="hero-actions">
-      <a href="/catalogo" class="hero-btn hero-btn--primary">
-        Ver catalogo
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </a>
-      <!-- <a href="#stats" class="hero-btn hero-btn--secondary">Ver estadisticas</a> -->
+  <div class="hero-inner container">
+    <div class="hero-content">
+      <!-- <div class="hero-badge">
+        <span class="hero-badge-dot"></span>
+        Inventario de pedales de guitarra
+      </div> -->
+      <h1 class="hero-title">
+        <span class="hero-title-line">La </span>
+        <span class="hero-title-line hero-title-accent"> Malatesta</span>
+      </h1>
+      <p class="hero-subtitle">
+        Equipos musicales, pedales boutique, vintage y de coleccion. Guitarras, cables, overdrives, fuzzes, delays y mas.
+      </p>
+      <div class="hero-actions">
+        <a href="/catalogo" class="hero-btn hero-btn--primary">
+          Ver catalogo
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+        <!-- <a href="#stats" class="hero-btn hero-btn--secondary">Ver estadisticas</a> -->
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <span class="hero-stat-value">+50</span>
+          <span class="hero-stat-label">Productos</span>
+        </div>
+        <div class="hero-stat-divider"></div>
+        <div class="hero-stat">
+          <span class="hero-stat-value">+10</span>
+          <span class="hero-stat-label">Categorias</span>
+        </div>
+      </div>
     </div>
-    <div class="hero-stats">
-      <div class="hero-stat">
-        <span class="hero-stat-value">+50</span>
-        <span class="hero-stat-label">Productos</span>
-      </div>
-      <div class="hero-stat-divider"></div>
-      <div class="hero-stat">
-        <span class="hero-stat-value">+10</span>
-        <span class="hero-stat-label">Categorias</span>
-      </div>
+    <div class="hero-image">
+      <img src="/la-malatesta-imagen.png" alt="La Malatesta" />
     </div>
   </div>
 </section>
@@ -77,15 +82,38 @@
     mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, black, transparent);
   }
 
-  .hero-content {
+  .hero-inner {
     position: relative;
     z-index: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    gap: var(--space-2xl);
+    padding-top: 120px;
+    padding-bottom: 80px;
+  }
+
+  .hero-content {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     gap: var(--space-xl);
-    padding-top: 120px;
-    padding-bottom: 80px;
+  }
+
+  .hero-image {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .hero-image img {
+    width: 100%;
+    /* max-width: 520px; */
+    /* max-height: 500px; */
+    object-fit: contain;
+    border-radius: 15%;
   }
 
   .hero-badge {
@@ -208,5 +236,68 @@
     width: 1px;
     height: 40px;
     background: var(--color-border);
+  }
+
+  @media (max-width: 1024px) {
+    .hero-inner {
+      grid-template-columns: 1fr;
+    }
+
+    .hero-image {
+      display: none;
+    }
+
+    .hero {
+      background-image: url('/la-malatesta-imagen.png');
+      background-size: cover;
+      background-position: center;
+      background-attachment: fixed;
+      padding-top: 5rem;
+      padding-left: 2rem;
+    }
+
+    .hero-bg::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(10, 10, 10, 0.85);
+      z-index: 0;
+    }
+
+    .hero-inner {
+      padding-top: 140px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .hero {
+      background-attachment: scroll;
+      padding: 0;
+    }
+
+    .hero-bg::after {
+      background: rgba(10, 10, 10, 0.92);
+    }
+
+    .hero-inner {
+      padding-top: 120px;
+      padding-bottom: 60px;
+    }
+
+    .hero-title {
+      /* flex-direction: column; */
+      gap: .5rem;
+    }
+
+    .hero-stats {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-lg);
+    }
+
+    .hero-stat-divider {
+      width: 40px;
+      height: 1px;
+    }
   }
 </style>
