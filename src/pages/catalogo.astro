@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro'
+import CatalogSearch from '../components/CatalogSearch.astro'
 import { CATEGORY_META, CATEGORY_SLUGS } from '../lib/types'
 
 export const revalidate = 60
@@ -20,6 +21,8 @@ const categories = CATEGORY_SLUGS.map((slug) => ({
         <h1 class="catalogo-title">Catalogo</h1>
         <p class="catalogo-subtitle">50 pedales organizados por categoria</p>
       </header>
+
+      <CatalogSearch />
 
       <nav class="filters" aria-label="Categorias">
         {categories.map((cat) => (
@@ -45,6 +48,18 @@ const categories = CATEGORY_SLUGS.map((slug) => ({
   const PER_PAGE = 12
   let currentPage = 1
   let allPedales: Pedal[] = []
+  let searchQuery = ''
+
+  function getFilteredPedales(): Pedal[] {
+    if (!searchQuery) return allPedales
+    const q = searchQuery.toLowerCase()
+    return allPedales.filter((p) =>
+      p.name.toLowerCase().includes(q) ||
+      p.typology.toLowerCase().includes(q) ||
+      p.type.toLowerCase().includes(q) ||
+      p.tags.some((t) => t.toLowerCase().includes(q))
+    )
+  }
 
   function renderCard(pedal: Pedal) {
     const category = CATEGORY_META[pedal.category]
@@ -75,9 +90,10 @@ const categories = CATEGORY_SLUGS.map((slug) => ({
     if (!container) return
 
     currentPage = page
+    const filtered = getFilteredPedales()
     const start = (page - 1) * PER_PAGE
-    const pagePedales = allPedales.slice(start, start + PER_PAGE)
-    const totalPages = Math.ceil(allPedales.length / PER_PAGE)
+    const pagePedales = filtered.slice(start, start + PER_PAGE)
+    const totalPages = Math.ceil(filtered.length / PER_PAGE)
 
     const html = pagePedales.map(renderCard).join('')
 
@@ -132,6 +148,17 @@ const categories = CATEGORY_SLUGS.map((slug) => ({
   }
 
   loadPedales()
+
+  const searchInput = document.getElementById('catalog-search-input') as HTMLInputElement
+  let searchTimeout: ReturnType<typeof setTimeout>
+
+  searchInput?.addEventListener('input', () => {
+    clearTimeout(searchTimeout)
+    searchTimeout = setTimeout(() => {
+      searchQuery = searchInput.value.trim()
+      renderPage(1)
+    }, 200)
+  })
 </script>
 
 <style>
