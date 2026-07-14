@@ -1,4 +1,4 @@
-# Malatesta Pedales
+# Malatesta
 
 Plataforma full-stack de inventario y catálogo online de pedales de guitarra para [Malatesta](https://malatesta-pedales.netlify.app/).
 
