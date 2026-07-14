@@ -116,8 +116,26 @@ import { CATEGORY_META, CATEGORY_SLUGS } from '../../../lib/types'
           <textarea id="notes" name="notes" class="form-textarea" rows="4"></textarea>
         </div>
         <div class="form-group">
-          <label for="image_url" class="form-label">URL de imagen</label>
-          <input type="url" id="image_url" name="image_url" class="form-input" placeholder="https://..." />
+          <label class="form-label">Imagen del pedal</label>
+          <div id="image-preview" class="image-preview" hidden>
+            <img id="preview-img" src="" alt="Preview" />
+            <button type="button" id="remove-preview" class="image-preview-remove">&times;</button>
+          </div>
+          <div class="image-toggle">
+            <button type="button" class="image-toggle-btn active" data-mode="url">URL</button>
+            <button type="button" class="image-toggle-btn" data-mode="upload">Subir archivo</button>
+          </div>
+          <div id="image-url-mode" class="image-mode">
+            <input type="url" id="image_url" name="image_url" class="form-input" placeholder="https://..." />
+          </div>
+          <div id="image-upload-mode" class="image-mode" hidden>
+            <div id="drop-zone" class="drop-zone">
+              <p>Arrastra una imagen o <button type="button" id="file-pick-btn" class="drop-zone-link">selecciona un archivo</button></p>
+              <p class="drop-zone-hint">JPG, PNG, WEBP. Max 5MB.</p>
+              <input type="file" id="file-input" accept="image/*" hidden />
+            </div>
+            <div id="upload-status" class="upload-status" hidden></div>
+          </div>
         </div>
       </div>
     </div>
@@ -137,6 +155,7 @@ import { CATEGORY_META, CATEGORY_SLUGS } from '../../../lib/types'
 <script>
   import { supabase } from '../../../lib/supabase'
   import { generateSlug } from '../../../lib/utils'
+  import { uploadToCloudinary, CloudinaryError } from '../../../lib/cloudinary'
 
   async function checkAuth() {
     const { data: { session } } = await supabase.auth.getSession()
@@ -152,6 +171,122 @@ import { CATEGORY_META, CATEGORY_SLUGS } from '../../../lib/types'
   const successEl = document.getElementById('form-success') as HTMLElement
   const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement
 
+  const previewContainer = document.getElementById('image-preview') as HTMLElement
+  const previewImg = document.getElementById('preview-img') as HTMLImageElement
+  const removePreviewBtn = document.getElementById('remove-preview') as HTMLButtonElement
+  const urlMode = document.getElementById('image-url-mode') as HTMLElement
+  const uploadMode = document.getElementById('image-upload-mode') as HTMLElement
+  const dropZone = document.getElementById('drop-zone') as HTMLElement
+  const fileInput = document.getElementById('file-input') as HTMLInputElement
+  const filePickBtn = document.getElementById('file-pick-btn') as HTMLButtonElement
+  const uploadStatus = document.getElementById('upload-status') as HTMLElement
+  const imageUrlInput = document.getElementById('image_url') as HTMLInputElement
+
+  let pendingFile: File | null = null
+  let uploadedUrl = ''
+
+  function showPreview(src: string) {
+    previewImg.src = src
+    previewContainer.hidden = false
+  }
+
+  function hidePreview() {
+    previewContainer.hidden = true
+    previewImg.src = ''
+  }
+
+  function showUploadStatus(text: string, isError = false) {
+    uploadStatus.textContent = text
+    uploadStatus.style.color = isError ? 'var(--color-danger)' : 'var(--color-text-secondary)'
+    uploadStatus.hidden = false
+  }
+
+  function hideUploadStatus() {
+    uploadStatus.hidden = true
+  }
+
+  // Toggle modes
+  document.querySelectorAll('.image-toggle-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.image-toggle-btn').forEach((b) => b.classList.remove('active'))
+      btn.classList.add('active')
+      const mode = btn.getAttribute('data-mode')
+      if (mode === 'url') {
+        urlMode.hidden = false
+        uploadMode.hidden = true
+      } else {
+        urlMode.hidden = true
+        uploadMode.hidden = false
+      }
+    })
+  })
+
+  // URL input preview
+  imageUrlInput?.addEventListener('input', () => {
+    const val = imageUrlInput.value.trim()
+    if (val) {
+      showPreview(val)
+    } else {
+      hidePreview()
+    }
+  })
+
+  // File pick button
+  filePickBtn?.addEventListener('click', () => fileInput.click())
+
+  // File selected
+  fileInput?.addEventListener('change', () => {
+    const file = fileInput.files?.[0]
+    if (file) handleFile(file)
+  })
+
+  // Drag & drop
+  dropZone?.addEventListener('dragover', (e) => {
+    e.preventDefault()
+    dropZone.classList.add('drop-zone--active')
+  })
+  dropZone?.addEventListener('dragleave', () => {
+    dropZone.classList.remove('drop-zone--active')
+  })
+  dropZone?.addEventListener('drop', (e) => {
+    e.preventDefault()
+    dropZone.classList.remove('drop-zone--active')
+    const file = e.dataTransfer?.files[0]
+    if (file) handleFile(file)
+  })
+
+  async function handleFile(file: File) {
+    try {
+      showUploadStatus('Subiendo imagen...')
+      pendingFile = file
+      uploadedUrl = ''
+
+      const reader = new FileReader()
+      reader.onload = () => showPreview(reader.result as string)
+      reader.readAsDataURL(file)
+
+      uploadedUrl = await uploadToCloudinary(file)
+      showUploadStatus(`Imagen subida: ${file.name}`)
+      pendingFile = null
+    } catch (err) {
+      const msg = err instanceof CloudinaryError ? err.message : 'Error al subir la imagen.'
+      showUploadStatus(msg, true)
+      hidePreview()
+      pendingFile = null
+      uploadedUrl = ''
+    }
+  }
+
+  // Remove preview
+  removePreviewBtn?.addEventListener('click', () => {
+    hidePreview()
+    hideUploadStatus()
+    imageUrlInput.value = ''
+    fileInput.value = ''
+    pendingFile = null
+    uploadedUrl = ''
+  })
+
   async function init() {
     if (!(await checkAuth())) return
   }
@@ -166,6 +301,23 @@ import { CATEGORY_META, CATEGORY_SLUGS } from '../../../lib/types'
     successEl.hidden = true
     submitBtn.disabled = true
     submitBtn.textContent = 'Creando...'
+
+    let imageUrl = imageUrlInput.value.trim()
+
+    if (uploadedUrl) {
+      imageUrl = uploadedUrl
+    } else if (pendingFile) {
+      try {
+        imageUrl = await uploadToCloudinary(pendingFile)
+      } catch (err) {
+        const msg = err instanceof CloudinaryError ? err.message : 'Error al subir la imagen.'
+        errorEl.textContent = msg
+        errorEl.hidden = false
+        submitBtn.disabled = false
+        submitBtn.textContent = 'Crear pedal'
+        return
+      }
+    }
 
     const fd = new FormData(form)
     const tagsRaw = fd.get('tags') as string
@@ -187,7 +339,7 @@ import { CATEGORY_META, CATEGORY_SLUGS } from '../../../lib/types'
       price_optimistic: Number(fd.get('price_optimistic')) || 0,
       in_use: fd.get('in_use') === 'on',
       available: fd.get('available') === 'on',
-      image_url: fd.get('image_url') as string,
+      image_url: imageUrl,
       notes: fd.get('notes') as string,
     }
 
@@ -399,5 +551,111 @@ import { CATEGORY_META, CATEGORY_SLUGS } from '../../../lib/types'
       justify-content: center;
       text-align: center;
     }
+  }
+
+  .image-preview {
+    position: relative;
+    display: inline-block;
+    margin-bottom: var(--space-sm);
+  }
+
+  .image-preview img {
+    max-height: 200px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+    display: block;
+  }
+
+  .image-preview-remove {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0, 0, 0, 0.7);
+    color: #fff;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background var(--transition-fast);
+  }
+
+  .image-preview-remove:hover {
+    background: var(--color-danger);
+  }
+
+  .image-toggle {
+    display: flex;
+    gap: 2px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 2px;
+    margin-bottom: var(--space-sm);
+  }
+
+  .image-toggle-btn {
+    flex: 1;
+    padding: 6px 12px;
+    border: none;
+    border-radius: calc(var(--radius-md) - 2px);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+  }
+
+  .image-toggle-btn.active {
+    background: var(--color-accent);
+    color: #000;
+  }
+
+  .drop-zone {
+    border: 2px dashed var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-xl);
+    text-align: center;
+    transition: all var(--transition-fast);
+    cursor: pointer;
+  }
+
+  .drop-zone--active {
+    border-color: var(--color-accent);
+    background: rgba(245, 158, 11, 0.05);
+  }
+
+  .drop-zone p {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+  }
+
+  .drop-zone-link {
+    background: none;
+    border: none;
+    color: var(--color-accent);
+    cursor: pointer;
+    font-size: inherit;
+    text-decoration: underline;
+    padding: 0;
+  }
+
+  .drop-zone-hint {
+    margin-top: var(--space-xs) !important;
+    color: var(--color-text-muted) !important;
+    font-size: var(--text-xs) !important;
+  }
+
+  .upload-status {
+    margin-top: var(--space-sm);
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
   }
 </style>
